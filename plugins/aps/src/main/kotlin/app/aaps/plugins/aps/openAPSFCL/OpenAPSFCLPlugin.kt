@@ -737,6 +737,7 @@ open class OpenAPSFCLPlugin @Inject constructor(
                     )
 
                     addPreference(AdaptiveSwitchPreference(ctx = context, booleanKey = BooleanKey.ResetLearning, summary = R.string.ResetLearning_summary, title = R.string.ResetLearning_title))
+                    addPreference(AdaptiveIntPreference(ctx = context, intKey = IntKey.Advice_Interval_Hours, dialogMessage = R.string.Advice_Interval_Hours_summary, title = R.string.Advice_Interval_Hours_title))
                     addPreference(AdaptiveDoublePreference(ctx = context, doubleKey = DoubleKey.CarbISF_min_Factor, dialogMessage = R.string.CarbISF_min_Factor_summary, title = R.string.CarbISF_min_Factor_title))
                     addPreference(AdaptiveDoublePreference(ctx = context, doubleKey = DoubleKey.CarbISF_max_Factor, dialogMessage = R.string.CarbISF_max_Factor_summary, title = R.string.CarbISF_max_Factor_title))
                 }

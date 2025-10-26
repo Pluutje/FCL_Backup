@@ -272,6 +272,8 @@
     <string name="FCLAanUit_title">Full Closed Loop</string>
     <string name="ResetLearning_summary">Wanneer ingeschakeld worden bij de eerst volgende run de FCL-learnings gewist. LET OP! na de reset weer uitzetten anders blijft de data gewist</string>
     <string name="ResetLearning_title">Reset Learning</string>
+    <string name="Advice_Interval_Hours_summary">Update tijd tussen 2 opeenvolgende parameter advies berekeningen. Instelbaar tussen 4 en 48 uur.</string>
+    <string name="Advice_Interval_Hours_title">Update tijd parameter advies [h]</string>
     <string name="CarbISF_min_Factor_summary">Minimum correctiefactor waarmee de ISF en CarbRatio wordt gecorrigeerdtijdens het leerproces</string>
     <string name="CarbISF_min_Factor_title">Minimum ISF_CR Learningfactor</string>
     <string name="CarbISF_max_Factor_summary">Maximum correctiefactor waarmee de ISF en CarbRatio wordt gecorrigeerdtijdens het leerproces</string>

@@ -773,7 +773,7 @@ class FCL@Inject constructor(
     // ★★★ PARAMETERS HELPER ★★★
     private val parametersHelper = FCLParameters(preferences)
     // ★★★ METRICS HELPER ★★★
-    private val metricsHelper = FCLMetrics(context)
+    private val metricsHelper = FCLMetrics(context,preferences)
 
 
     init {
@@ -1235,19 +1235,26 @@ class FCL@Inject constructor(
             PersiOnOff = " - Persistent Bg detection switched OFF"
         }
 
+
+
+
         // ★★★ METRICS BEREKENEN ★★★
         val metrics24h = metricsHelper.calculateMetrics(24)
-        val metrics7d = metricsHelper.calculateMetrics(168) // 7 dagen
+        val metrics7d = metricsHelper.calculateMetrics(168)
         val dataQuality24h = metricsHelper.getDataQualityMetrics(24)
 
-// ★★★ PARAMETER ADVIES ★★★
+// ★★★ PARAMETER ADVIES - SLIMME TIMING ★★★
         val parameters = FCLParameters(preferences)
         val agressivenessAdvice = metricsHelper.calculateAgressivenessAdvice(parameters, metrics24h)
+        val lastAdviceAge = metricsHelper.getLastAdviceAge()
+        val shouldShowNewAdvice = metricsHelper.shouldCalculateNewAdvice()
+
+
 
 
         return """
 ╔═══════════════════
-║  ══ FCL v2.7.2 ══ 
+║  ══ FCL v2.7.4 ══ 
 ╚═══════════════════
 
 🎯 LAATSTE BOLUS BESLISSING
@@ -1376,7 +1383,7 @@ ${parametersHelper.getParameterSummary()}
 • Time in Range: ${metrics24h.timeInRange.toInt()}% (3.9-10.0 mmol/L)
 • Time Below Range: ${metrics24h.timeBelowRange.toInt()}% (<3.9 mmol/L) ${if (metrics24h.timeBelowRange > 5) "⚠️" else ""}
 • Time Above Range: ${metrics24h.timeAboveRange.toInt()}% (>10.0 mmol/L) ${if (metrics24h.timeAboveRange > 25) "⚠️" else ""}
-• Time Below Target: ${metrics24h.timeBelowTarget.toInt()}% (<5.2 mmol/L) ${if (metrics24h.timeBelowTarget > 15) "🚨" else ""}
+• Time Below Target: ${metrics24h.timeBelowTarget.toInt()}% (<${round(Target_Bg, 1)} mmol/L) ${if (metrics24h.timeBelowTarget > 15) "🚨" else ""}
 • Gemiddelde glucose: ${round(metrics24h.averageGlucose, 1)} mmol/L
 • GMI: ${round(metrics24h.gmi, 1)}% (geschatte HbA1c)
 • Variatie (CV): ${metrics24h.cv.toInt()}% ${if (metrics24h.cv > 36) "⚠️" else ""}
@@ -1396,14 +1403,16 @@ ${parametersHelper.getParameterSummary()}
 
 [ PARAMETER OPTIMALISATIE ADVIES ]
 ${if (agressivenessAdvice.isNotEmpty()) {
-            agressivenessAdvice.joinToString("\n  ") { advice ->
-                val arrow = when (advice.changeDirection) {
-                    "INCREASE" -> "⬆️"
-                    "DECREASE" -> "⬇️"
-                    else -> "➡️"
+            "🕒 Laatste advies: $lastAdviceAge\n" +
+                (if (shouldShowNewAdvice) "🟢 NIEUW ADVIES BESCHIKBAAR\n" else "🟡 Toon opgeslagen advies\n") +
+                agressivenessAdvice.joinToString("\n  ") { advice ->
+                    val arrow = when (advice.changeDirection) {
+                        "INCREASE" -> "⬆️"
+                        "DECREASE" -> "⬇️"
+                        else -> "➡️"
+                    }
+                    "$arrow ${advice.parameterName}: ${advice.currentValue.toInt()} → ${advice.recommendedValue.toInt()}"
                 }
-                "$arrow ${advice.parameterName}: ${advice.currentValue.toInt()} → ${advice.recommendedValue.toInt()}"
-            }
         } else {
             "  ✅ Geen parameter aanpassingen aanbevolen"
         }}

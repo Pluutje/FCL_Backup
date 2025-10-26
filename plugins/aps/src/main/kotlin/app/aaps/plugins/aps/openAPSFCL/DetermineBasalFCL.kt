@@ -56,11 +56,10 @@ class DetermineBasalFCL @Inject constructor(
 
 ) {
 
-    private val externalDir = File(Environment.getExternalStorageDirectory().absolutePath + "/Documents/AAPS/")
-    private val FCLfile = File(externalDir, "ANALYSE/FCL.csv")
-    private val Mathfile = File(externalDir, "ANALYSE/Math.csv")
+
 
     private val fcl = FCL(profileUtil,fabricPrivacy,preferences,dateUtil,persistenceLayer,context)
+    private val FCLMetrics = FCLMetrics(context,preferences)
 
     private var FCL_SMB: Double = 0.0
 
@@ -220,6 +219,7 @@ class DetermineBasalFCL @Inject constructor(
             fcl.setCurrentCR(profile.carb_ratio)
             fcl.setCurrentISF(sens/18)
             fcl.setTargetBg(target/18)
+            FCLMetrics.setTargetBg(target/18)
 
             if (preferences.get(BooleanKey.stappenAanUit)) {
                 val now = System.currentTimeMillis()
@@ -555,14 +555,14 @@ class DetermineBasalFCL @Inject constructor(
 // *************************************************************************************************************
         var sens = profile.sens
 
-    //    fcl.forceUpdateStappen()
+
 
         val fclAdvice = getFCLAdvice(profile, iob_data_array, sens, target_bg, bg)
         val effectiveISF = fclAdvice.effectiveISF
         val step_target_corr = fclAdvice.Target_adjust
         target_bg = target_bg + (step_target_corr * 18)
 
-      //  sens = sens / (fclAdvice.ISF_adjust / 100)
+
 
         sens = effectiveISF * 18
 

@@ -39,6 +39,7 @@ import org.joda.time.DateTime
 import android.content.Context
 
 import org.joda.time.Hours
+import app.aaps.core.data.model.SC
 
 @Singleton
 
@@ -51,7 +52,7 @@ class DetermineBasalFCL @Inject constructor(
     private val preferences: Preferences,
     private val dateUtil: DateUtil,
     private val persistenceLayer: PersistenceLayer,
-    private val context: Context
+    private val context: Context,
 
 ) {
 
@@ -220,6 +221,19 @@ class DetermineBasalFCL @Inject constructor(
             fcl.setCurrentISF(sens/18)
             fcl.setTargetBg(target/18)
 
+            if (preferences.get(BooleanKey.stappenAanUit)) {
+                val now = System.currentTimeMillis()
+                val timeMillis60 = now - 60 * 60 * 1000 // 180 minutes en millisecondes
+                val SC = persistenceLayer.getStepsCountFromTime(timeMillis60)
+                if (SC.isNotEmpty()) {
+                    val currentSC = SC.last() // ✅ nieuwste stapdata
+                    fcl.set5minStap(currentSC.steps5min)
+                    fcl.set30minStap(currentSC.steps30min)
+                 }
+
+            }
+
+
             val iobArray = iob_data_array
             val iob_data = iobArray[0]
             val currentIOB = iob_data.iob
@@ -254,108 +268,13 @@ class DetermineBasalFCL @Inject constructor(
         }
     }
 
-/*   private fun logFCL(
-        bg: Double,
-        iob: Double,
-        isf: Double,
-        fclAdvice: FCL.EnhancedInsulinAdvice
-    ) {
-        val dateStr = dateUtil.dateAndTimeString(dateUtil.now()).toString()
-        val bgmmol = round(bg / 18.0, 1)
-        val isfmmol = round(isf / 18.0, 1)
-
-
-        // Headers voor beknopte CSV
-        val compactHeaderRow = "datum,bg,iob,bolus,reden,reservedBolus,phase,mealDetected,detectedCarbs,cob\n"
-        // Data voor beknopte CSV
-        val compactValuesToRecord = "$dateStr,$bgmmol,$iob,${fclAdvice.dose},\"${fclAdvice.reason}\",${fclAdvice.reservedDose},${fclAdvice.phase},${fclAdvice.mealDetected},${fclAdvice.detectedCarbs},${fclAdvice.carbsOnBoard}"
-
-        if (!FCLfile.exists()) {
-            FCLfile.parentFile?.mkdirs()
-            FCLfile.createNewFile()
-            FCLfile.appendText(compactHeaderRow)
-        }
-        FCLfile.appendText(compactValuesToRecord + "\n")
-
-        val mathPhase = fclAdvice.mathPhase
-        val mathSlope = round(fclAdvice.mathSlope,2).toString()
-        val mathAcceleration = round(fclAdvice.mathAcceleration,2).toString()
-        val mathConsistency = round(fclAdvice.mathConsistency,2).toString()
-        val mathDirectionConsistency = round(fclAdvice.mathDirectionConsistency,2).toString()
-        val mathMagnitudeConsistency = round(fclAdvice.mathMagnitudeConsistency,2).toString()
-        val mathPatternConsistency = round(fclAdvice.mathPatternConsistency,2).toString()
-        val mathDataPoints = fclAdvice.mathDataPoints
-        val usedFallback = fclAdvice.usedFallback
-
-
-
-        // Headers voor uitgebreide CSV
-        val detailedHeaderRow = "datum,bg,iob,isf,bolus,reden,voorspelling,conf,meal,fase,detectedCarbs,deliver,cob,reservedBolus,mathPhase,mathSlope,mathAcceleration,mathConsistency,mathDirectionConsistency,mathMagnitudeConsistency,mathPatternConsistency,mathDataPoints,usedFallback,debug\n"
-        // Data voor uitgebreide CSV
-        val detailedValuesToRecord = "$dateStr,$bgmmol,$iob,$isfmmol,${fclAdvice.dose},\"${fclAdvice.reason}\",${fclAdvice.predictedValue},${fclAdvice.confidence},${fclAdvice.mealDetected},${fclAdvice.phase},${fclAdvice.detectedCarbs},${fclAdvice.shouldDeliverBolus},${fclAdvice.carbsOnBoard},${fclAdvice.reservedDose},${mathPhase},${mathSlope},${mathAcceleration},${mathConsistency},${mathDirectionConsistency},${mathMagnitudeConsistency},${mathPatternConsistency},${mathDataPoints},${usedFallback},\"${fclAdvice.debugLog}\""
-
-        if (!Mathfile.exists()) {
-            Mathfile.parentFile?.mkdirs()
-            Mathfile.createNewFile()
-            Mathfile.appendText(detailedHeaderRow)
-        }
-        Mathfile.appendText(detailedValuesToRecord + "\n")
-    }   */
-
     private var lastParameterLogTime: DateTime = DateTime(0) // Epoch tijd
     private var lastParameterValues: Map<String, String> = emptyMap()
 
-    private fun logFCL(
-        bg: Double,
-        iob: Double,
-        isf: Double,
-        fclAdvice: FCL.EnhancedInsulinAdvice
-    ) {
-        val dateStr = dateUtil.dateAndTimeString(dateUtil.now()).toString()
-        val bgmmol = round(bg / 18.0, 1)
-        val isfmmol = round(isf / 18.0, 1)
-
-        // Headers voor beknopte CSV
-        val compactHeaderRow = "datum,bg,iob,bolus,reden,reservedBolus,phase,mealDetected,detectedCarbs,cob\n"
-        // Data voor beknopte CSV
-        val compactValuesToRecord = "$dateStr,$bgmmol,$iob,${fclAdvice.dose},\"${fclAdvice.reason}\",${fclAdvice.reservedDose},${fclAdvice.phase},${fclAdvice.mealDetected},${fclAdvice.detectedCarbs.toInt()},${fclAdvice.carbsOnBoard.toInt()}"
-
-        if (!FCLfile.exists()) {
-            FCLfile.parentFile?.mkdirs()
-            FCLfile.createNewFile()
-            FCLfile.appendText(compactHeaderRow)
-        }
-        FCLfile.appendText(compactValuesToRecord + "\n")
-
-        val mathPhase = fclAdvice.mathPhase
-        val mathSlope = round(fclAdvice.mathSlope,2).toString()
-        val mathAcceleration = round(fclAdvice.mathAcceleration,2).toString()
-        val mathConsistency = round(fclAdvice.mathConsistency,2).toString()
-        val mathDirectionConsistency = round(fclAdvice.mathDirectionConsistency,2).toString()
-        val mathMagnitudeConsistency = round(fclAdvice.mathMagnitudeConsistency,2).toString()
-        val mathPatternConsistency = round(fclAdvice.mathPatternConsistency,2).toString()
-        val mathDataPoints = fclAdvice.mathDataPoints
-        val usedFallback = fclAdvice.usedFallback
-        val predictedValue = fclAdvice.predictedValue?.let { round(it,1) }.toString()
-
-        // Headers voor uitgebreide CSV
-        val detailedHeaderRow = "datum,bg,iob,isf,bolus,reden,voorspelling,conf,meal,fase,detectedCarbs,deliver,cob,reservedBolus,mathPhase,mathSlope,mathAcceleration,mathConsistency,mathDirectionConsistency,mathMagnitudeConsistency,mathPatternConsistency,mathDataPoints,usedFallback,debug\n"
-        // Data voor uitgebreide CSV
-        val detailedValuesToRecord = "$dateStr,$bgmmol,$iob,$isfmmol,${fclAdvice.dose},\"${fclAdvice.reason}\",${predictedValue},${fclAdvice.confidence},${fclAdvice.mealDetected},${fclAdvice.phase},${fclAdvice.detectedCarbs.toInt()},${fclAdvice.shouldDeliverBolus},${fclAdvice.carbsOnBoard.toInt()},${fclAdvice.reservedDose},${mathPhase},${mathSlope},${mathAcceleration},${mathConsistency},${mathDirectionConsistency},${mathMagnitudeConsistency},${mathPatternConsistency},${mathDataPoints},${usedFallback},\"${fclAdvice.debugLog}\""
-
-        if (!Mathfile.exists()) {
-            Mathfile.parentFile?.mkdirs()
-            Mathfile.createNewFile()
-            Mathfile.appendText(detailedHeaderRow)
-        }
-        Mathfile.appendText(detailedValuesToRecord + "\n")
-
-        // ★★★ NIEUW: Parameters logging ★★★
-        logFCLParametersIfNeeded(dateStr)
-    }
 
     // ★★★ NIEUWE FUNCTIE VOOR PARAMETERS LOGGING ★★★
-    private fun logFCLParametersIfNeeded(dateStr: String) {
+    private fun logFCLParameters() {
+        val dateStr = dateUtil.dateAndTimeString(dateUtil.now())
         val currentTime = DateTime.now()
         val shouldLogParameters = shouldLogParametersNow(currentTime)
 
@@ -385,6 +304,35 @@ class DetermineBasalFCL @Inject constructor(
 
     private fun getCurrentFCLParameters(): Map<String, String> {
         return mapOf(
+
+
+            // veiligheid
+            "max_bolus" to round(preferences.get(DoubleKey.max_bolus),2).toString(),
+            "max_basaal" to round(preferences.get(DoubleKey.ApsMaxBasal),2).toString(),
+            "max_IOB" to round(preferences.get(DoubleKey.ApsSmbMaxIob),2).toString(),
+            "IOB_corr_perc" to preferences.get(IntKey.IOB_corr_perc).toString(),
+
+            // Bolus percentages
+            "bolus_perc_early" to preferences.get(IntKey.bolus_perc_early).toString(),
+            "bolus_perc_day" to preferences.get(IntKey.bolus_perc_day).toString(),
+            "bolus_perc_night" to preferences.get(IntKey.bolus_perc_night).toString(),
+            "bolus_perc_mid" to preferences.get(IntKey.bolus_perc_mid).toString(),
+            "bolus_perc_late" to preferences.get(IntKey.bolus_perc_late).toString(),
+
+
+            // Fase detectie parameters
+            "phase_early_rise_slope" to round(preferences.get(DoubleKey.phase_early_rise_slope),2).toString(),
+            "phase_mid_rise_slope" to round(preferences.get(DoubleKey.phase_mid_rise_slope),2).toString(),
+            "phase_late_rise_slope" to round(preferences.get(DoubleKey.phase_late_rise_slope),2).toString(),
+            "phase_peak_slope" to round(preferences.get(DoubleKey.phase_peak_slope),2).toString(),
+            "phase_early_rise_accel" to round(preferences.get(DoubleKey.phase_early_rise_accel),2).toString(),
+            "phase_min_consistency" to round(preferences.get(DoubleKey.phase_min_consistency),2).toString(),
+
+            // Veiligheids parameters
+            "peak_damping_percentage" to preferences.get(IntKey.peak_damping_percentage).toString(),
+            "hypo_risk_percentage" to preferences.get(IntKey.hypo_risk_percentage).toString(),
+
+
             // Resistentie parameters
             "Resistentie" to preferences.get(BooleanKey.Resistentie).toString(),
             "Min_resistentiePerc" to preferences.get(IntKey.Min_resistentiePerc).toString(),
@@ -417,25 +365,6 @@ class DetermineBasalFCL @Inject constructor(
             "tau_absorption_minutes" to preferences.get(IntKey.tau_absorption_minutes).toString(),
             "meal_detection_sensitivity" to round(preferences.get(DoubleKey.meal_detection_sensitivity),2).toString(),
 
-            // Bolus percentages
-            "bolus_perc_early" to preferences.get(IntKey.bolus_perc_early).toString(),
-            "bolus_perc_day" to preferences.get(IntKey.bolus_perc_day).toString(),
-            "bolus_perc_night" to preferences.get(IntKey.bolus_perc_night).toString(),
-            "bolus_perc_mid" to preferences.get(IntKey.bolus_perc_mid).toString(),
-            "bolus_perc_late" to preferences.get(IntKey.bolus_perc_late).toString(),
-            "max_bolus" to round(preferences.get(DoubleKey.max_bolus),2).toString(),
-
-            // Fase detectie parameters
-            "phase_early_rise_slope" to round(preferences.get(DoubleKey.phase_early_rise_slope),2).toString(),
-            "phase_mid_rise_slope" to round(preferences.get(DoubleKey.phase_mid_rise_slope),2).toString(),
-            "phase_late_rise_slope" to round(preferences.get(DoubleKey.phase_late_rise_slope),2).toString(),
-            "phase_peak_slope" to round(preferences.get(DoubleKey.phase_peak_slope),2).toString(),
-            "phase_early_rise_accel" to round(preferences.get(DoubleKey.phase_early_rise_accel),2).toString(),
-            "phase_min_consistency" to round(preferences.get(DoubleKey.phase_min_consistency),2).toString(),
-
-            // Veiligheids parameters
-            "peak_damping_percentage" to preferences.get(IntKey.peak_damping_percentage).toString(),
-            "hypo_risk_percentage" to preferences.get(IntKey.hypo_risk_percentage).toString(),
 
             // Learning parameters
             "CarbISF_min_Factor" to round(preferences.get(DoubleKey.CarbISF_min_Factor),2).toString(),
@@ -447,17 +376,6 @@ class DetermineBasalFCL @Inject constructor(
             "NachtStart" to preferences.get(StringKey.NachtStart),
             "WeekendDagen" to preferences.get(StringKey.WeekendDagen),
 
-            // Hypo parameters
-            "hypoThresholdDay" to round(preferences.get(DoubleKey.hypoThresholdDay),1).toString(),
-            "hypoThresholdNight" to round(preferences.get(DoubleKey.hypoThresholdNight),1).toString(),
-            "hypoRecoveryBGRange" to round(preferences.get(DoubleKey.hypoRecoveryBGRange),1).toString(),
-            "hypoRecoveryMinutes" to preferences.get(IntKey.hypoRecoveryMinutes).toString(),
-            "hypo_recovery_aggressiveness" to round(preferences.get(DoubleKey.hypo_recovery_aggressiveness),2).toString(),
-            "min_recovery_days" to preferences.get(IntKey.min_recovery_days).toString(),
-            "max_recovery_days" to preferences.get(IntKey.max_recovery_days).toString(),
-
-            // IOB correctie
-            "IOB_corr_perc" to preferences.get(IntKey.IOB_corr_perc).toString(),
 
             // Reset learning
             "ResetLearning" to preferences.get(BooleanKey.ResetLearning).toString()
@@ -486,6 +404,8 @@ class DetermineBasalFCL @Inject constructor(
             android.util.Log.e("FCL_PARAMETERS", "Fout bij loggen parameters: ${e.message}")
         }
     }
+
+
 
 
  // *************************************************************************************************************
@@ -634,7 +554,9 @@ class DetermineBasalFCL @Inject constructor(
 
 // *************************************************************************************************************
         var sens = profile.sens
-    //    var log_sens = ""
+
+    //    fcl.forceUpdateStappen()
+
         val fclAdvice = getFCLAdvice(profile, iob_data_array, sens, target_bg, bg)
         val effectiveISF = fclAdvice.effectiveISF
         val step_target_corr = fclAdvice.Target_adjust
@@ -741,12 +663,7 @@ class DetermineBasalFCL @Inject constructor(
         }
 
 
-        logFCL(
-            bg = glucose_status.glucose,
-            iob = iob_data.iob,
-            isf = profile.sens,
-            fclAdvice = fclAdvice
-        )
+        logFCLParameters()
         FCL_SMB = fclAdvice.dose
 
 

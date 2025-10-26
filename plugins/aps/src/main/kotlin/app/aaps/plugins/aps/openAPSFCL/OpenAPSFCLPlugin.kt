@@ -626,13 +626,18 @@ open class OpenAPSFCLPlugin @Inject constructor(
                             summary = R.string.Info_fcl_1_VEILIGHEIDSINSTELLINGEN
                         )
                     )
-                    addPreference(AdaptiveDoublePreference(ctx = context, doubleKey = DoubleKey.hypoThresholdDay, dialogMessage = R.string.hypoThresholdDay_summary, title = R.string.hypoThresholdDay_title))
-                    addPreference(AdaptiveDoublePreference(ctx = context, doubleKey = DoubleKey.hypoThresholdNight, dialogMessage = R.string.hypoThresholdNight_summary, title = R.string.hypoThresholdNight_title))
-                    addPreference(AdaptiveDoublePreference(ctx = context, doubleKey = DoubleKey.hypoRecoveryBGRange, dialogMessage = R.string.hypoRecoveryBGRange_summary, title = R.string.hypoRecoveryBGRange_title))
-                    addPreference(AdaptiveIntPreference(ctx = context, intKey = IntKey.hypoRecoveryMinutes, dialogMessage = R.string.hypoRecoveryMinutes_summary, title = R.string.hypoRecoveryMinutes_title))
-                    addPreference(AdaptiveDoublePreference(ctx = context, doubleKey = DoubleKey.hypo_recovery_aggressiveness, dialogMessage = R.string.hypo_recovery_aggressiveness_summary, title = R.string.hypo_recovery_aggressiveness_title))
-                    addPreference(AdaptiveIntPreference(ctx = context, intKey = IntKey.min_recovery_days, dialogMessage = R.string.min_recovery_days_summary, title = R.string.min_recovery_days_title))
-                    addPreference(AdaptiveIntPreference(ctx = context, intKey = IntKey.max_recovery_days, dialogMessage = R.string.max_recovery_days_summary, title = R.string.max_recovery_days_title))
+                    addPreference(AdaptiveDoublePreference(ctx = context, doubleKey = DoubleKey.max_bolus, dialogMessage = R.string.max_bolus_summary, title = R.string.max_bolus_title))
+                    addPreference(AdaptiveDoublePreference(ctx = context, doubleKey = DoubleKey.ApsMaxBasal, dialogMessage = R.string.openapsma_max_basal_summary, title = R.string.openapsma_max_basal_title))
+                    addPreference(AdaptiveDoublePreference(ctx = context, doubleKey = DoubleKey.ApsSmbMaxIob, dialogMessage = R.string.openapssmb_max_iob_summary, title = R.string.openapssmb_max_iob_title))
+
+                    addPreference(AdaptiveIntPreference(ctx = context, intKey = IntKey.IOB_corr_perc, dialogMessage = R.string.IOB_corr_perc_summary, title = R.string.IOB_corr_perc_title))
+                //        addPreference(AdaptiveDoublePreference(ctx = context, doubleKey = DoubleKey.hypoThresholdDay, dialogMessage = R.string.hypoThresholdDay_summary, title = R.string.hypoThresholdDay_title))
+            //        addPreference(AdaptiveDoublePreference(ctx = context, doubleKey = DoubleKey.hypoThresholdNight, dialogMessage = R.string.hypoThresholdNight_summary, title = R.string.hypoThresholdNight_title))
+            //        addPreference(AdaptiveDoublePreference(ctx = context, doubleKey = DoubleKey.hypoRecoveryBGRange, dialogMessage = R.string.hypoRecoveryBGRange_summary, title = R.string.hypoRecoveryBGRange_title))
+            //        addPreference(AdaptiveIntPreference(ctx = context, intKey = IntKey.hypoRecoveryMinutes, dialogMessage = R.string.hypoRecoveryMinutes_summary, title = R.string.hypoRecoveryMinutes_title))
+            //        addPreference(AdaptiveDoublePreference(ctx = context, doubleKey = DoubleKey.hypo_recovery_aggressiveness, dialogMessage = R.string.hypo_recovery_aggressiveness_summary, title = R.string.hypo_recovery_aggressiveness_title))
+            //        addPreference(AdaptiveIntPreference(ctx = context, intKey = IntKey.min_recovery_days, dialogMessage = R.string.min_recovery_days_summary, title = R.string.min_recovery_days_title))
+            //        addPreference(AdaptiveIntPreference(ctx = context, intKey = IntKey.max_recovery_days, dialogMessage = R.string.max_recovery_days_summary, title = R.string.max_recovery_days_title))
                 }
                 addPreference(VEILIGHEIDSINSTELLINGEN)
 
@@ -651,10 +656,8 @@ open class OpenAPSFCLPlugin @Inject constructor(
                             summary = R.string.Info_fcl_2_BOLUSMAALTIJDINSTELLINGEN
                         )
                     )
-                    addPreference(AdaptiveDoublePreference(ctx = context, doubleKey = DoubleKey.ApsMaxBasal, dialogMessage = R.string.openapsma_max_basal_summary, title = R.string.openapsma_max_basal_title))
-                    addPreference(AdaptiveDoublePreference(ctx = context, doubleKey = DoubleKey.ApsSmbMaxIob, dialogMessage = R.string.openapssmb_max_iob_summary, title = R.string.openapssmb_max_iob_title))
-                    addPreference(AdaptiveDoublePreference(ctx = context, doubleKey = DoubleKey.max_bolus, dialogMessage = R.string.max_bolus_summary, title = R.string.max_bolus_title))
-                    addPreference(AdaptiveIntPreference(ctx = context, intKey = IntKey.IOB_corr_perc, dialogMessage = R.string.IOB_corr_perc_summary, title = R.string.IOB_corr_perc_title))
+
+
                     addPreference(AdaptiveIntPreference(ctx = context, intKey = IntKey.bolus_perc_day, dialogMessage = R.string.bolus_perc_day_summary, title = R.string.bolus_perc_day_title))
                     addPreference(AdaptiveIntPreference(ctx = context, intKey = IntKey.bolus_perc_night, dialogMessage = R.string.bolus_perc_night_summary, title = R.string.bolus_perc_night_title))
                     addPreference(AdaptiveIntPreference(ctx = context, intKey = IntKey.bolus_perc_early, dialogMessage = R.string.bolus_perc_early_summary, title = R.string.bolus_perc_early_title))
@@ -784,10 +787,10 @@ open class OpenAPSFCLPlugin @Inject constructor(
                 }
                 addPreference(DAGNACHTCYCLUS)
 
-                // 📊 PERSISTENT HOGE BG
+                // 🔥 PERSISTENT HOGE BG
                 val PERSISTENTHOGEBG = preferenceManager.createPreferenceScreen(context).apply {
                     key = "PERSISTENT HOGE BGg"
-                    title = "\uD83D\uDCCA PERSISTENT HOGE BG"
+                    title = "\uD83D\uDD25 PERSISTENT HOGE BG"
                     initialExpandedChildrenCount = Int.MAX_VALUE
 
                     addPreference(

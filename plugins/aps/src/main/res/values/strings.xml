@@ -288,7 +288,7 @@
     <string name="bolus_perc_late_summary">Bolus-percentage deliverd during LATE meal detection</string>
     <string name="bolus_perc_late_title">Bolus percentage late-rise [%]</string>
 
-    <string name="max_bolus_summary">Percentage van de berekende bolus wat daadwerkelijk afgegeven wordt</string>
+    <string name="max_bolus_summary">Maximum SMB-bolus die kan worden afgegeven</string>
     <string name="max_bolus_title">Max Bolus [eh]</string>
     <string name="IOB_corr_perc_summary">Percentage IOB correction for bolus calculation. Higher number = more bolus</string>
     <string name="IOB_corr_perc_title">Bolus correction strenght for IOB[%]</string>

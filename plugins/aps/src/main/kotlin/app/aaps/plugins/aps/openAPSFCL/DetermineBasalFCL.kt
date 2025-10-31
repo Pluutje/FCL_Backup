@@ -40,6 +40,7 @@ import android.content.Context
 
 import org.joda.time.Hours
 import app.aaps.core.data.model.SC
+import app.aaps.plugins.aps.openAPSFCL.BGDataPoint
 
 @Singleton
 
@@ -187,7 +188,7 @@ class DetermineBasalFCL @Inject constructor(
  // *************************************************************************************************************
 
     // FCL code ----------------------------------------------------------------
-    private fun getHistoricalBGData(hoursBack: Int = 2): List<FCL.BGDataPoint> {
+    private fun getHistoricalBGData(hoursBack: Int = 2): List<BGDataPoint> {
         val now = dateUtil.now()
       //  val startTime = now - T.hours(hoursBack).msecs()
         val startTime = now - T.hours(2).msecs()
@@ -203,7 +204,7 @@ class DetermineBasalFCL @Inject constructor(
         return bgReadings
             .sortedBy { it.timestamp }
             .map { reading ->
-                FCL.BGDataPoint(
+                BGDataPoint(
                     timestamp = DateTime(reading.timestamp),
                     bg = reading.value / 18.0, // mg/dL naar mmol/L
                     iob = 0.0 // Wordt later aangevuld
@@ -245,7 +246,7 @@ class DetermineBasalFCL @Inject constructor(
                 return FCL.EnhancedInsulinAdvice(0.0, "Need more BG data: ${historicalData.size}/10 points", 0.0)
             }
 
-            val currentData = FCL.BGDataPoint(
+            val currentData = BGDataPoint(
                 timestamp = DateTime(dateUtil.now()),
                 bg = historicalData.last().bg,
                 iob = currentIOB
@@ -655,10 +656,11 @@ class DetermineBasalFCL @Inject constructor(
 // *************************************************************************************************************************8
 
 
+      //  val learningStatus = FCLLearningEngine(preferences, context).getLearningStatus()
 
+        val statusText = fcl.getFCLStatus()
 
-        val learningStatus = fcl.getLearningStatus()
-        learningStatus.split("\n").forEach { line ->
+        statusText.split("\n").forEach { line ->
             consoleError.add(line)
         }
 

@@ -100,6 +100,6 @@ enum class IntKey(
     Dagen_resistentie("Dagen_resistentie", 3,1,7),
     MinDelay_resistentie("MinDelay_resistentie", 0,-60,120),
 
-    Advice_Interval_Hours("Advice_Interval_Hours", 24,4,48),
+    Advice_Interval_Hours("Advice_Interval_Hours", 24,1,48),
 
 }

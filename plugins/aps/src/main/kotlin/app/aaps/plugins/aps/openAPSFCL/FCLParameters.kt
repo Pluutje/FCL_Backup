@@ -264,10 +264,36 @@ class FCLParameters(private val preferences: Preferences) {
             append("Hoog impact parameters: ${highImpact.size}\n\n")
 
             highImpact.forEach { (name, value) ->
-                append("🔴 $name: ${round(value.current, 1)} (${value.definition.description})\n")
+                val formattedValue = formatParameterValue(value.current, value.definition)
+                append("🔹$name: $formattedValue (${value.definition.description})\n")
             }
         }
     }
+
+    private fun formatParameterValue(value: Double, definition: FCLParameters.ParameterDefinition): String {
+        return when (definition.key) {
+            is IntKey -> "${value.toInt()}" // 0 decimalen voor percentages
+            is DoubleKey -> "%.2f".format(value) // 2 decimalen voor slopes/sensitiviteiten
+            else -> "%.2f".format(value) // fallback
+        }
+    }
+
+
+ /*   fun getParameterSummary(): String {
+        val highImpact = getHighImpactParameters()
+
+        return buildString {
+            append("=== FCL PARAMETER OVERZICHT ===\n")
+            append("Totaal parameters: ${getAllParameters().size}\n")
+            append("Hoog impact parameters: ${highImpact.size}\n\n")
+
+            highImpact.forEach { (name, value) ->
+                append("🔴 $name: ${round(value.current, 2)} (${value.definition.description})\n")
+            }
+        }
+    }   */
+
+
 
     private fun round(value: Double, digits: Int): Double {
         val scale = Math.pow(10.0, digits.toDouble())

@@ -8,7 +8,7 @@ import kotlin.math.round
 
 // ★★★ IMPORT DE NODIGE DATA CLASSES ★★★
 import app.aaps.plugins.aps.openAPSFCL.FCL.EnhancedInsulinAdvice
-import app.aaps.plugins.aps.openAPSFCL.FCL.BGDataPoint
+import app.aaps.plugins.aps.openAPSFCL.BGDataPoint
 
 class FCLLogging(private val context: Context) {
 

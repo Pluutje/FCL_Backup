@@ -3420,7 +3420,7 @@ $parameterSummary
 • Time Below Range: ${metrics24h.timeBelowRange.toInt()}% (<3.9 mmol/L) ${if (metrics24h.timeBelowRange > 5) "⚠️" else ""}
 • Time Above Range: ${metrics24h.timeAboveRange.toInt()}% (>10.0 mmol/L) ${if (metrics24h.timeAboveRange > 25) "⚠️" else ""}
 • Gemiddelde glucose: ${round(metrics24h.averageGlucose, 1)} mmol/L
-• GMI: ${round(metrics24h.gmi, 1)}% (geschatte HbA1c)
+• GMI (HbA1c): ${round(metrics24h.gmi, 1)}% (${(metrics24h.gmi*10.93-23.5).toInt()} mmol/mol)
 • Variatie (CV): ${metrics24h.cv.toInt()}% ${if (metrics24h.cv > 36) "⚠️" else ""}
 
 [ LAATSTE 7 DAGEN - INFORMATIEF ]

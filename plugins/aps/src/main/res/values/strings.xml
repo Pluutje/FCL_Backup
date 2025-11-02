@@ -296,6 +296,8 @@
     <string name="IOB_corr_perc_title">Bolus correction strenght for IOB[%]</string>
     <string name="carb_percentage_summary">Percentage waarmee de FCL code de berekende carbs vermenigvuldigd</string>
     <string name="carb_percentage_title">Carb berekenings percentage [%]</string>
+    <string name="IOB_strongRise_perc_summary">Percentage for MaxIOB correction during strong rise during meal</string>
+    <string name="IOB_strongRise_perc_title">MaxIOB correction during strong rise[%]</string>
 
     <string name="peak_damping_percentage_summary">extra Bolus Percentage correction near peak</string>
     <string name="peak_damping_percentage_title">Peak damping percentage [%]</string>

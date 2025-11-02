@@ -14,40 +14,68 @@ class FCLLogging(private val context: Context) {
 
     private var lastCleanupCheck: DateTime? = null
     private val CLEANUP_CHECK_INTERVAL = 24 * 60 * 60 * 1000L // 24 uur
+    private val RETENTION_DAYS = 3 // ★★★ BEWAAR 3 DAGEN ★★★
 
-    fun logToDetailedCSV(
-        fclAdvice: EnhancedInsulinAdvice,
-        currentData: BGDataPoint,
-        currentISF: Double,
-        currentIOB: Double
+    // ★★★ GEÜNIFICEERDE LOGGING FUNCTIE ★★★
+    fun logToAnalysisCSV(
+        fclAdvice: EnhancedInsulinAdvice? = null,
+        currentData: BGDataPoint? = null,
+        currentISF: Double? = null,
+        currentIOB: Double? = null,
+        // Alternatieve parameters voor eenvoudige logging
+        timestamp: DateTime? = null,
+        bg: Double? = null,
+        iob: Double? = null,
+        detectedCarbs: Double? = null,
+        mealDetected: Boolean? = null,
+        dose: Double? = null,
+        reason: String? = null,
+        target: Double? = null,
+        phase: String? = null
     ) {
         try {
-            val dateStr = DateTime.now().toString("dd-MM-yyyy HH:mm")
+            val dateStr = (timestamp ?: DateTime.now()).toString("dd-MM-yyyy HH:mm")
 
             val csvLine = buildString {
                 // Basis data
-                append("$dateStr,")                      // datum
-                append("${round(currentData.bg, 1)},")
-                append("${round(currentIOB, 3)},")
-                append("${round(currentISF, 1)},")
-                append("${round(fclAdvice.dose, 2)},")
-                append("${round(fclAdvice.dose, 2)},")  // lastCalculatedBolus is niet meer beschikbaar, gebruik gewoon dose
-                append("${fclAdvice.shouldDeliverBolus},")
-                append("${round(fclAdvice.reservedDose, 2)},")
+                append("$dateStr,")
+
+                // BG data
+                append("${round(bg ?: currentData?.bg ?: 0.0, 1)},")
+                append("${round(iob ?: currentIOB ?: currentData?.iob ?: 0.0, 3)},")
+                append("${round(currentISF ?: 0.0, 1)},")
+
+                // Bolus data
+                append("${round(dose ?: fclAdvice?.dose ?: 0.0, 2)},")
+                append("${round(fclAdvice?.dose ?: 0.0, 2)},") // lastCalculatedBolus
+                append("${fclAdvice?.shouldDeliverBolus ?: (dose != null && dose > 0.05)},")
+                append("${round(fclAdvice?.reservedDose ?: 0.0, 2)},")
 
                 // Reden (escape quotes)
-                append("\"${fclAdvice.reason.replace("\"", "'")}\",")
+                val reasonText = reason ?: fclAdvice?.reason ?: ""
+                append("\"${reasonText.replace("\"", "'")}\",")
 
                 // Voorspelling en confidence
-                append("${fclAdvice.predictedValue?.let { round(it, 1) } ?: "null"},")
-                append("${round(fclAdvice.confidence, 2)},")
-                append("${fclAdvice.mealDetected},")
-                append("${fclAdvice.phase},")
-                append("${round(fclAdvice.detectedCarbs, 1)},")
-                append("${round(fclAdvice.carbsOnBoard, 1)},")
+                append("${fclAdvice?.predictedValue?.let { round(it, 1) } ?: "null"},")
+                append("${round(fclAdvice?.confidence ?: 0.0, 2)},")
+                append("${mealDetected ?: fclAdvice?.mealDetected ?: false},")
+
+                // Fase en carbs
+                append("${phase ?: fclAdvice?.phase ?: "unknown"},")
+                append("${round(detectedCarbs ?: fclAdvice?.detectedCarbs ?: 0.0, 1)},")
+                append("${round(fclAdvice?.carbsOnBoard ?: 0.0, 1)},")
+
+                // Target
+                append("${round(target ?: 0.0, 1)},")
 
                 // Blocked reason - alleen vullen als shouldDeliverBolus false is
-                append("\"${if (!fclAdvice.shouldDeliverBolus) getBlockedReason(fclAdvice) else ""}\"")
+                val shouldDeliver = fclAdvice?.shouldDeliverBolus ?: (dose != null && dose > 0.05)
+                val blockedReason = if (!shouldDeliver && fclAdvice != null) {
+                    getBlockedReason(fclAdvice)
+                } else {
+                    ""
+                }
+                append("\"$blockedReason\"")
             }
 
             // Write to CSV file with retention management
@@ -113,6 +141,7 @@ class FCLLogging(private val context: Context) {
         val csvFile = getOrCreateCSVFile()
         performRetentionCleanup(csvFile)
     }
+
     private fun performRetentionCleanup(csvFile: File) {
         if (!csvFile.exists() || csvFile.length() == 0L) return
 
@@ -123,7 +152,8 @@ class FCLLogging(private val context: Context) {
             val header = lines[0]
             val dataLines = lines.subList(1, lines.size)
 
-            val cutoffDate = DateTime.now().minusDays(7)
+            // ★★★ BEWAAR ALLEEN 3 DAGEN ★★★
+            val cutoffDate = DateTime.now().minusDays(RETENTION_DAYS)
 
             val filteredLines = dataLines.filter { line ->
                 try {
@@ -151,10 +181,12 @@ class FCLLogging(private val context: Context) {
         }
     }
 
+
     private fun writeCSVHeader(csvFile: File) {
         try {
             if (!csvFile.exists() || csvFile.length() == 0L) {
-                val header = "Timestamp,CurrentBG,CurrentIOB,CurrentISF,Dose,LastCalculatedBolus,ShouldDeliver,ReservedDose,Reason,PredictedValue,Confidence,MealDetected,Phase,DetectedCarbs,CarbsOnBoard,BlockedReason\n"
+                // ★★★ EXACTE HEADER STRUCTUUR VOOR PARSING ★★★
+                val header = "Timestamp,CurrentBG,CurrentIOB,CurrentISF,Dose,LastCalculatedBolus,ShouldDeliver,ReservedDose,Reason,PredictedValue,Confidence,MealDetected,Phase,DetectedCarbs,CarbsOnBoard,Target,BlockedReason\n"
                 csvFile.writeText(header)
             }
         } catch (e: Exception) {
@@ -162,11 +194,24 @@ class FCLLogging(private val context: Context) {
         }
     }
 
+    // ★★★ BACKWARD COMPATIBILITY ★★★
+    @Deprecated("Use logToAnalysisCSV instead", ReplaceWith("logToAnalysisCSV(fclAdvice, currentData, currentISF, currentIOB)"))
+    fun logToDetailedCSV(
+        fclAdvice: EnhancedInsulinAdvice,
+        currentData: BGDataPoint,
+        currentISF: Double,
+        currentIOB: Double
+    ) {
+        logToAnalysisCSV(
+            fclAdvice = fclAdvice,
+            currentData = currentData,
+            currentISF = currentISF,
+            currentIOB = currentIOB
+        )
+    }
+
     private fun round(value: Double, digits: Int): Double {
         val scale = Math.pow(10.0, digits.toDouble())
         return Math.round(value * scale) / scale
     }
-
-
 }
-

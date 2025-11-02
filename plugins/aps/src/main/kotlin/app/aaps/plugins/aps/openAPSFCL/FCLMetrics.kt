@@ -68,7 +68,11 @@ class FCLMetrics(private val context: Context, private val preferences: Preferen
         val timeToFirstBolus: Int,
         val maxIOBDuringMeal: Double,
         val wasSuccessful: Boolean,
-        val mealType: String = "unknown"
+        val mealType: String = "unknown",
+        val declineRate: Double? = null,
+        val rapidDeclineDetected: Boolean = false,
+        val declinePhaseDuration: Int = 0, // minuten
+        val virtualHypoScore: Double = 0.0
     )
 
     data class ParameterAdjustmentResult(
@@ -80,6 +84,24 @@ class FCLMetrics(private val context: Context, private val preferences: Preferen
         val mealMetricsAfter: MealPerformanceMetrics?,
         val improvement: Double,
         val learned: Boolean = false
+    )
+
+    // ★★★ GEMODULEERD PARAMETER ADVIES SYSTEEM ★★★
+    data class ParameterAdviceHistory(
+        val parameterName: String,
+        val adviceHistory: MutableList<HistoricalAdvice> = mutableListOf(),
+        val currentTrend: String = "STABLE", // INCREASING, DECREASING, STABLE
+        val confidenceInTrend: Double = 0.0,
+        val lastChangeTime: DateTime = DateTime.now()
+    )
+
+    data class HistoricalAdvice(
+        val timestamp: DateTime,
+        val recommendedValue: Double,
+        val changeDirection: String,
+        val confidence: Double,
+        val reason: String,
+        val actualImprovement: Double? = null
     )
 
     data class DataQualityMetrics(
@@ -116,6 +138,7 @@ class FCLMetrics(private val context: Context, private val preferences: Preferen
         private var cachedDataQuality: DataQualityMetrics? = null
     }
 
+
     private var cachedMealMetrics: MutableList<MealPerformanceMetrics> = mutableListOf()
     private var lastParameterAdjustments: MutableList<ParameterAdjustmentResult> = mutableListOf()
     private val gson = Gson()
@@ -127,6 +150,27 @@ class FCLMetrics(private val context: Context, private val preferences: Preferen
     }
 
     fun setTargetBg(value: Double) { Target_Bg = value }
+
+    // ★★★ CACHE RESET FUNCTIES ★★★
+    fun resetAllCaches() {
+        cached24hMetrics = null
+        cached7dMetrics = null
+        cachedDataQuality = null
+        cachedMealMetrics.clear()
+    }
+
+    fun resetMetricsCache() {
+        cached24hMetrics = null
+        cached7dMetrics = null
+    }
+
+    fun resetDataQualityCache() {
+        cachedDataQuality = null
+    }
+
+    fun resetMealMetricsCache() {
+        cachedMealMetrics.clear()
+    }
 
     // ★★★ GESTANDAARDISEERDE PARAMETER AANPASSINGEN ★★★
     private fun calculateOptimalIncrease(currentValue: Double): Double {
@@ -257,13 +301,12 @@ class FCLMetrics(private val context: Context, private val preferences: Preferen
 
         evaluateParameterAdjustments()
 
-        val adviceList = mutableListOf<ParameterAgressivenessAdvice>()
+        // ★★★ GEBRUIK GEMODULEERDE ADVIES GENERATIE ★★★
+        val mealMetrics = calculateMealPerformanceMetrics(168)
+        val adviceList = generateModulatedAdvice(parameters, metrics, mealMetrics)
 
-        // 1. LEARNING-BASED ADVIES
-        adviceList.addAll(generateLearningBasedAdvice(parameters))
-
-        // 2. MAALTIJD-SPECIFIEKE ANALYSE
-        adviceList.addAll(generateMealBasedAdvice(parameters))
+        // ★★★ UPDATE ADVIES GESCHIEDENIS ★★★
+        adviceList.forEach { updateAdviceHistory(it) }
 
         val finalAdvice = adviceList
             .take(5)
@@ -366,16 +409,208 @@ class FCLMetrics(private val context: Context, private val preferences: Preferen
         }
     }
 
+    // ★★★ GEMODULEERDE ADVIES GENERATIE ★★★
+    private fun generateModulatedAdvice(
+        parameters: FCLParameters,
+        metrics: GlucoseMetrics,
+        mealMetrics: List<MealPerformanceMetrics>
+    ): List<ParameterAgressivenessAdvice> {
+
+        val rawAdvice = mutableListOf<ParameterAgressivenessAdvice>()
+        val history = loadAdviceHistory()
+
+        // 1. Learning-based advies (onveranderd)
+        rawAdvice.addAll(generateLearningBasedAdvice(parameters))
+
+        // 2. Meal-based advies (onveranderd)
+        rawAdvice.addAll(generateMealBasedAdvice(parameters))
+
+        // 3. Moduleer adviezen op basis van geschiedenis
+        return rawAdvice.map { advice ->
+            modulateAdviceWithHistory(advice, history, mealMetrics)
+        }.sortedByDescending { it.confidence }
+    }
+
+    private fun modulateAdviceWithHistory(
+        rawAdvice: ParameterAgressivenessAdvice,
+        history: Map<String, ParameterAdviceHistory>,
+        mealMetrics: List<MealPerformanceMetrics>
+    ): ParameterAgressivenessAdvice {
+
+        val parameterHistory = history[rawAdvice.parameterName]
+        if (parameterHistory == null || parameterHistory.adviceHistory.size < 2) {
+            return rawAdvice // Geen geschiedenis, gebruik raw advies
+        }
+
+        val recentHistory = parameterHistory.adviceHistory.takeLast(3)
+        val currentTrend = analyzeParameterTrend(recentHistory)
+
+        return when {
+            // ★★★ CONFLICT DETECTIE: Nieuw advies gaat tegen trend in ★★★
+            isConflictingWithTrend(rawAdvice, currentTrend) -> {
+                createStabilizedAdvice(rawAdvice, currentTrend, recentHistory)
+            }
+
+            // ★★★ TREND BEVESTIGING: Nieuw advies bevestigt bestaande trend ★★★
+            isConfirmingTrend(rawAdvice, currentTrend) -> {
+                createReinforcedAdvice(rawAdvice, currentTrend, recentHistory)
+            }
+
+            // ★★★ NEUTRAAL: Geen duidelijke trend ★★★
+            else -> {
+                createConservativeAdvice(rawAdvice, recentHistory)
+            }
+        }
+    }
+
+    private fun analyzeParameterTrend(history: List<HistoricalAdvice>): String {
+        if (history.size < 2) return "STABLE"
+
+        val changes = history.zipWithNext().map { (prev, current) ->
+            current.recommendedValue - prev.recommendedValue
+        }
+
+        val avgChange = changes.average()
+        return when {
+            avgChange > 0.5 -> "INCREASING"
+            avgChange < -0.5 -> "DECREASING"
+            else -> "STABLE"
+        }
+    }
+
+    private fun isConflictingWithTrend(
+        advice: ParameterAgressivenessAdvice,
+        trend: String
+    ): Boolean {
+        return when (trend) {
+            "INCREASING" -> advice.changeDirection == "DECREASE"
+            "DECREASING" -> advice.changeDirection == "INCREASE"
+            else -> false
+        }
+    }
+
+    private fun isConfirmingTrend(
+        advice: ParameterAgressivenessAdvice,
+        trend: String
+    ): Boolean {
+        return when (trend) {
+            "INCREASING" -> advice.changeDirection == "INCREASE"
+            "DECREASING" -> advice.changeDirection == "DECREASE"
+            else -> false
+        }
+    }
+
+    private fun createStabilizedAdvice(
+        rawAdvice: ParameterAgressivenessAdvice,
+        trend: String,
+        history: List<HistoricalAdvice>
+    ): ParameterAgressivenessAdvice {
+        // ★★★ BIJ CONFLICT: KLEINERE AANPASSING EN LAGER VERTROUWEN ★★★
+        val historicalValues = history.map { it.recommendedValue }
+        val avgHistoricalValue = historicalValues.average()
+
+        // Bereken gemoduleerde waarde (50% van voorgestelde verandering)
+        val proposedChange = rawAdvice.recommendedValue - rawAdvice.currentValue
+        val modulatedChange = proposedChange * 0.5
+        val modulatedValue = rawAdvice.currentValue + modulatedChange
+
+        // Verlaag vertrouwen bij tegenstrijdige adviezen
+        val modulatedConfidence = rawAdvice.confidence * 0.6
+
+        return rawAdvice.copy(
+            recommendedValue = modulatedValue,
+            confidence = modulatedConfidence,
+            reason = rawAdvice.reason + " (gemoduleerd: conflict met eerdere trend)",
+            expectedImprovement = "Kleinere aanpassing wegens tegenstrijdige trends"
+        )
+    }
+
+    private fun createReinforcedAdvice(
+        rawAdvice: ParameterAgressivenessAdvice,
+        trend: String,
+        history: List<HistoricalAdvice>
+    ): ParameterAgressivenessAdvice {
+        // ★★★ BIJ BEVESTIGING: BEHOUD VERTROUWEN ★★★
+        return rawAdvice.copy(
+            confidence = min(rawAdvice.confidence * 1.1, 0.95),
+            reason = rawAdvice.reason + " (bevestigt eerdere trend)",
+            expectedImprovement = rawAdvice.expectedImprovement + " - trend bevestigd"
+        )
+    }
+
+    private fun createConservativeAdvice(
+        rawAdvice: ParameterAgressivenessAdvice,
+        history: List<HistoricalAdvice>
+    ): ParameterAgressivenessAdvice {
+        // ★★★ BIJ GEEN TREND: CONSERVATIEVE AANPASSING ★★★
+        val modulatedChange = (rawAdvice.recommendedValue - rawAdvice.currentValue) * 0.8
+        val modulatedValue = rawAdvice.currentValue + modulatedChange
+
+        return rawAdvice.copy(
+            recommendedValue = modulatedValue,
+            reason = rawAdvice.reason + " (conservatieve aanpassing)"
+        )
+    }
+
     // ★★★ MAALTIJD-GEBASEERD ADVIES ★★★
     private fun generateMealBasedAdvice(parameters: FCLParameters): List<ParameterAgressivenessAdvice> {
         val mealMetrics = calculateMealPerformanceMetrics(168)
         val recentMeals = mealMetrics.filter { it.mealStartTime.isAfter(DateTime.now().minusDays(7)) }
 
+        // ★★★ VERMINDER DREMPEL NAAR 1 MAALTIJD VOOR INITIEEL ADVIES ★★★
+        if (recentMeals.size < 1) {
+            return listOf(createInitialSetupAdvice(parameters))
+        }
+
         if (recentMeals.size < 3) {
-            return listOf(createInsufficientMealDataAdvice(parameters, recentMeals.size))
+            return analyzeLimitedMealData(parameters, recentMeals)
         }
 
         return analyzeMealPerformance(parameters, recentMeals)
+    }
+
+    private fun createInitialSetupAdvice(parameters: FCLParameters): ParameterAgressivenessAdvice {
+        return ParameterAgressivenessAdvice(
+            parameterName = "Meal Detection Sensitivity",
+            currentValue = getCurrentParameterValue(parameters, "Meal Detection Sensitivity"),
+            recommendedValue = 0.3,
+            reason = "Startup advice: Verhoog maaltijd detectie gevoeligheid voor betere herkenning",
+            confidence = 0.6,
+            expectedImprovement = "Betere herkenning van maaltijd start",
+            changeDirection = "INCREASE"
+        )
+    }
+
+    private fun analyzeLimitedMealData(
+        parameters: FCLParameters,
+        meals: List<MealPerformanceMetrics>
+    ): List<ParameterAgressivenessAdvice> {
+        val advice = mutableListOf<ParameterAgressivenessAdvice>()
+
+        if (meals.isNotEmpty()) {
+            val successRate = calculateSuccessRate(meals)
+            val avgPeak = meals.map { it.peakBG }.average()
+
+            if (avgPeak > 11.0) {
+                advice.add(createParameterAdvice(
+                    parameters, "Early Rise Bolus %", "INCREASE",
+                    "Hoge piekwaarden (gem: ${round(avgPeak, 1)} mmol/L) bij beperkte data",
+                    successRate
+                ))
+            }
+
+            if (successRate < 0.5) {
+                advice.add(createParameterAdvice(
+                    parameters, "Meal Detection Sensitivity", "INCREASE",
+                    "Lage succesrate (${(successRate * 100).toInt()}%) bij eerste maaltijden",
+                    successRate
+                ))
+            }
+        }
+
+        return advice.ifEmpty {
+            listOf(createInitialSetupAdvice(parameters))
+        }
     }
 
     private fun analyzeMealPerformance(
@@ -427,14 +662,19 @@ class FCLMetrics(private val context: Context, private val preferences: Preferen
         mealMetrics: List<MealPerformanceMetrics>
     ): List<ParameterAgressivenessAdvice> {
         val postMealHypos = mealMetrics.count { it.postMealHypo }
-        val hypoPercentage = (postMealHypos.toDouble() / mealMetrics.size) * 100
+        val virtualHypos = mealMetrics.count { it.rapidDeclineDetected }
+        val totalHypos = postMealHypos + virtualHypos
+        val hypoPercentage = (totalHypos.toDouble() / mealMetrics.size) * 100
 
-        return if (hypoPercentage > 15) {
+        // ★★★ AANGEPASTE DREMPEL MET VIRTUELE HYPO'S ★★★
+        return if (hypoPercentage > 10) { // Lagere drempel omdat virtuele hypo's meegenomen worden
             listOf(createHypoSafetyAdvice(parameters, hypoPercentage, calculateSuccessRate(mealMetrics)))
         } else {
             emptyList()
         }
     }
+
+
 
     private fun analyzeSuccessRate(
         parameters: FCLParameters,
@@ -732,7 +972,8 @@ class FCLMetrics(private val context: Context, private val preferences: Preferen
                 }
 
                 val parts = line.split(",")
-                if (parts.size >= 15) {
+                // ★★★ AANGEPAST: Nu 17 kolommen verwachten i.p.v. 15 ★★★
+                if (parts.size >= 17) {
                     try {
                         val timestamp = dateFormatter.parseDateTime(parts[0])
                         if (timestamp.isAfter(cutoffTime)) {
@@ -752,6 +993,7 @@ class FCLMetrics(private val context: Context, private val preferences: Preferen
                                 else -> false
                             }
 
+                            // ★★★ AANGEPAST: Kolom indices aangepast voor nieuwe structuur ★★★
                             val detectedCarbs = parts[13].toDoubleOrNull() ?: 0.0
                             val carbsOnBoard = parts[14].toDoubleOrNull() ?: 0.0
 
@@ -779,6 +1021,283 @@ class FCLMetrics(private val context: Context, private val preferences: Preferen
 
         return readings.sortedBy { it.timestamp }
     }
+
+
+    // ★★★ VERBETERDE MAALTIJD DETECTIE - DIRECT INTEGRATIE MET FCL ★★★
+    private fun calculateEnhancedMealPerformanceMetrics(hours: Int = 168): List<MealPerformanceMetrics> {
+        val meals = mutableListOf<MealPerformanceMetrics>()
+        val cutoffTime = DateTime.now().minusHours(hours)
+
+        try {
+            val csvData = loadCSVData(hours)
+            if (csvData.isEmpty()) return emptyList()
+
+            // Zoek naar maaltijd patronen in de data
+            var currentMealStart: CSVReading? = null
+            var mealPeakBG = 0.0
+            var mealPeakTime: DateTime? = null
+            var totalCarbsDetected = 0.0
+            var totalInsulinDelivered = 0.0
+            var firstBolusTime: DateTime? = null
+
+            for (i in 0 until csvData.size - 1) {
+                val current = csvData[i]
+                val next = csvData[i + 1]
+
+                // ★★★ VERBETERDE MAALTIJD START DETECTIE ★★★
+                val isMealStart = when {
+                    current.mealDetected -> true
+                    current.detectedCarbs > 15.0 -> true
+                    current.dose > 0.1 && current.currentBG > Target_Bg + 1.0 -> true
+                    next.currentBG - current.currentBG > 1.5 && current.currentIOB < 1.0 -> true
+                    else -> false
+                }
+
+                if (isMealStart && currentMealStart == null && current.timestamp.isAfter(cutoffTime)) {
+                    currentMealStart = current
+                    mealPeakBG = current.currentBG
+                    mealPeakTime = current.timestamp
+                    totalCarbsDetected = current.detectedCarbs
+                    totalInsulinDelivered = 0.0
+                    firstBolusTime = null
+                }
+
+                // Update huidige maaltijd
+                currentMealStart?.let { mealStart ->
+                    if (current.currentBG > mealPeakBG) {
+                        mealPeakBG = current.currentBG
+                        mealPeakTime = current.timestamp
+                    }
+
+                    totalCarbsDetected = max(totalCarbsDetected, current.detectedCarbs)
+                    if (current.dose > 0.05) {
+                        totalInsulinDelivered += current.dose
+                        if (firstBolusTime == null && current.shouldDeliver) {
+                            firstBolusTime = current.timestamp
+                        }
+                    }
+
+                    // ★★★ VERBETERDE MAALTIJD EINDE DETECTIE ★★★
+                    val mealDuration = Minutes.minutesBetween(mealStart.timestamp, current.timestamp).minutes
+                    val isMealEnd = when {
+                        mealDuration > 240 -> true
+                        current.currentBG <= mealStart.currentBG + 0.5 && mealDuration > 90 -> true
+                        mealPeakTime != null && current.currentBG < mealPeakBG - 2.0 -> true
+                        i < csvData.size - 10 && isQuietPeriod(csvData.subList(i, min(i + 10, csvData.size))) -> true
+                        else -> false
+                    }
+
+                    if (isMealEnd) {
+                        val mealMetrics = createMealPerformanceMetrics(
+                            start = mealStart,
+                            end = current,
+                            peakBG = mealPeakBG,
+                            peakTime = mealPeakTime ?: mealStart.timestamp,
+                            totalCarbs = totalCarbsDetected,
+                            totalInsulin = totalInsulinDelivered,
+                            firstBolusTime = firstBolusTime,
+                            historicalData = csvData // NIEUWE PARAMETER
+                        )
+
+                        if (isValidMeal(mealMetrics)) {
+                            meals.add(mealMetrics)
+                        }
+
+                        currentMealStart = null
+                    }
+                }
+            }
+
+            currentMealStart?.let { mealStart ->
+                val lastReading = csvData.last()
+                val mealMetrics = createMealPerformanceMetrics(
+                    start = mealStart,
+                    end = lastReading,
+                    peakBG = mealPeakBG,
+                    peakTime = mealPeakTime ?: mealStart.timestamp,
+                    totalCarbs = totalCarbsDetected,
+                    totalInsulin = totalInsulinDelivered,
+                    firstBolusTime = firstBolusTime,
+                    historicalData = csvData // ★★★ NIEUWE PARAMETER TOEVOEGEN ★★★
+                )
+
+                if (isValidMeal(mealMetrics)) {
+                    meals.add(mealMetrics)
+                }
+            }
+
+        } catch (e: Exception) {
+            // Log de fout
+        }
+
+        return meals.sortedBy { it.mealStartTime }
+    }
+
+
+
+    // ★★★ NIEUWE HELPER FUNCTIES VOOR MAALTIJD ANALYSE ★★★
+    private fun calculateTimeAbove10(start: DateTime, end: DateTime): Int {
+        val data = getCSVDataBetween(start, end)
+        val readingsAbove10 = data.count { it.currentBG > 10.0 }
+        return readingsAbove10 * 5 // 5 minuten per meting
+    }
+
+    private fun calculateMaxIOB(start: DateTime, end: DateTime): Double {
+        val data = getCSVDataBetween(start, end)
+        return data.map { it.currentIOB }.maxOrNull() ?: 0.0
+    }
+
+    private fun getCSVDataBetween(start: DateTime, end: DateTime): List<CSVReading> {
+        val allData = loadCSVData(168) // Laad voldoende data
+        return allData.filter { it.timestamp in start..end }
+    }
+
+    private fun calculateTIRDuringMeal(start: DateTime, end: DateTime): Double {
+        val mealData = getCSVDataBetween(start, end)
+        if (mealData.isEmpty()) return 0.0
+        val inRange = mealData.count { it.currentBG in TARGET_LOW..TARGET_HIGH }
+        return (inRange.toDouble() / mealData.size) * 100.0
+    }
+
+    private fun hasPostMealHypo(start: CSVReading, end: CSVReading, peakTime: DateTime): Boolean {
+        // Check op hypo binnen 4 uur na piek
+        val hypoCutoff = peakTime.plusHours(4)
+        val relevantReadings = getCSVDataBetween(peakTime, hypoCutoff)
+        return relevantReadings.any { it.currentBG < 3.9 }
+    }
+
+    // ★★★ VIRTUELE HYPO DETECTIE OP BASIS VAN DAALSNELHEID ★★★
+    private fun calculateVirtualHypoMetrics(
+        start: CSVReading,
+        end: CSVReading,
+        peakTime: DateTime,
+        historicalData: List<CSVReading>
+    ): Triple<Double?, Boolean, Double> {
+        val declineStart = peakTime
+        val declineEnd = if (peakTime.plusMinutes(120).isBefore(end.timestamp)) {
+            peakTime.plusMinutes(120)
+        } else {
+            end.timestamp
+        }
+
+        val declineData = historicalData.filter {
+            it.timestamp in declineStart..declineEnd
+        }
+
+        if (declineData.size < 4) return Triple(null, false, 0.0)
+
+        // Bereken daalsnelheid in mmol/L per uur
+        val timeDiffHours = Hours.hoursBetween(declineStart, declineEnd).hours.toDouble()
+        val bgDiff = declineData.last().currentBG - declineData.first().currentBG
+        val declineRate = if (timeDiffHours > 0) bgDiff / timeDiffHours else 0.0
+
+        // Detecteer snelle daling (>2 mmol/L per uur)
+        val rapidDecline = declineRate < -2.0
+
+        // Bereken virtuele hypo score
+        val virtualHypoScore = calculateVirtualHypoScore(declineData, declineRate)
+
+        return Triple(declineRate, rapidDecline, virtualHypoScore)
+    }
+
+    private fun calculateVirtualHypoScore(
+        declineData: List<CSVReading>,
+        declineRate: Double
+    ): Double {
+        if (declineData.size < 3) return 0.0
+
+        var score = 0.0
+
+        // Factor 1: Daalsnelheid
+        score += min(abs(declineRate) * 0.5, 3.0)
+
+        // Factor 2: IOB tijdens daling
+        val avgIOB = declineData.map { it.currentIOB }.average()
+        if (avgIOB > 2.0) score += 1.0
+        if (avgIOB > 3.0) score += 1.0
+
+        // Factor 3: Consistentie van daling
+        val slopes = declineData.zipWithNext().map { (a, b) ->
+            val timeDiff = Minutes.minutesBetween(a.timestamp, b.timestamp).minutes / 60.0
+            if (timeDiff > 0) (b.currentBG - a.currentBG) / timeDiff else 0.0
+        }
+        val consistentDecline = slopes.all { it < -0.5 }
+        if (consistentDecline) score += 1.0
+
+        // Factor 4: Nabijheid van hypo drempel
+        val minBG = declineData.minOf { it.currentBG }
+        if (minBG < 4.5) score += 1.0
+        if (minBG < 4.0) score += 1.0
+
+        return min(score, 8.0) // Max score 8
+    }
+
+    private fun isValidMeal(metrics: MealPerformanceMetrics): Boolean {
+        return metrics.totalCarbsDetected >= 10.0 ||
+            metrics.totalInsulinDelivered >= 0.5 ||
+            (metrics.peakBG - metrics.startBG) >= 2.0
+    }
+
+    private fun isQuietPeriod(readings: List<CSVReading>): Boolean {
+        if (readings.size < 3) return false
+        return readings.all { it.detectedCarbs < 5.0 && it.dose < 0.05 }
+    }
+
+    private fun createMealPerformanceMetrics(
+        start: CSVReading,
+        end: CSVReading,
+        peakBG: Double,
+        peakTime: DateTime,
+        totalCarbs: Double,
+        totalInsulin: Double,
+        firstBolusTime: DateTime?,
+        historicalData: List<CSVReading> // NIEUWE PARAMETER
+    ): MealPerformanceMetrics {
+
+        // ★★★ NIEUW: Bereken virtuele hypo metrics ★★★
+        val (declineRate, rapidDecline, virtualHypoScore) = calculateVirtualHypoMetrics(
+            start, end, peakTime, historicalData
+        )
+
+        val timeToPeak = Minutes.minutesBetween(start.timestamp, peakTime).minutes
+        val timeToFirstBolus = firstBolusTime?.let {
+            Minutes.minutesBetween(start.timestamp, it).minutes
+        } ?: 0
+
+        // ★★★ VERBETERDE SUCCESS BEREKENING MET VIRTUELE HYPO ★★★
+        val wasSuccessful = !hasPostMealHypo(start, end, peakTime) &&
+            !rapidDecline && // Voeg virtuele hypo detectie toe
+            peakBG <= 11.0 &&
+            end.currentBG <= start.currentBG + 3.0 &&
+            virtualHypoScore < 3.0 // Max acceptabele virtuele hypo score
+
+        return MealPerformanceMetrics(
+            mealId = "meal_${start.timestamp.millis}",
+            mealStartTime = start.timestamp,
+            mealEndTime = end.timestamp,
+            startBG = start.currentBG,
+            peakBG = peakBG,
+            endBG = end.currentBG,
+            timeToPeak = timeToPeak,
+            totalCarbsDetected = totalCarbs,
+            totalInsulinDelivered = totalInsulin,
+            peakAboveTarget = max(0.0, peakBG - Target_Bg),
+            timeAbove10 = calculateTimeAbove10(start.timestamp, end.timestamp),
+            postMealHypo = hasPostMealHypo(start, end, peakTime),
+            timeInRangeDuringMeal = calculateTIRDuringMeal(start.timestamp, end.timestamp),
+            phaseInsulinBreakdown = emptyMap(),
+            firstBolusTime = firstBolusTime,
+            timeToFirstBolus = timeToFirstBolus,
+            maxIOBDuringMeal = calculateMaxIOB(start.timestamp, end.timestamp),
+            wasSuccessful = wasSuccessful,
+            mealType = determineMealType(start.timestamp),
+            declineRate = declineRate,
+            rapidDeclineDetected = rapidDecline,
+            virtualHypoScore = virtualHypoScore
+        )
+    }
+
+
 
     // ★★★ GLUCOSE METRICS BEREKENING ★★★
     private fun calculateGlucoseMetrics(data: List<CSVReading>, hours: Int): GlucoseMetrics {
@@ -973,8 +1492,17 @@ class FCLMetrics(private val context: Context, private val preferences: Preferen
         )
     }
 
-    // ★★★ MAALTIJD METRICS BEREKENING ★★★
-    fun calculateMealPerformanceMetrics(hours: Int = 24): List<MealPerformanceMetrics> {
+
+    // ★★★ VERBETERDE MAALTIJD METRICS BEREKENING ★★★
+    fun calculateMealPerformanceMetrics(hours: Int = 168): List<MealPerformanceMetrics> {
+        // Probeer eerst de verbeterde methode
+        val enhancedMeals = calculateEnhancedMealPerformanceMetrics(hours)
+        if (enhancedMeals.isNotEmpty()) {
+            cachedMealMetrics = enhancedMeals.toMutableList()
+            return enhancedMeals
+        }
+
+        // Fallback naar oude methode
         return parseMealMetricsFromCSV(hours).also {
             cachedMealMetrics = it.toMutableList()
         }
@@ -1238,6 +1766,53 @@ class FCLMetrics(private val context: Context, private val preferences: Preferen
         }
     }
 
+    private fun loadAdviceHistory(): Map<String, ParameterAdviceHistory> {
+        return try {
+            val json = prefs.getString("parameter_advice_history", null)
+            if (json != null) {
+                val type = object : com.google.gson.reflect.TypeToken<Map<String, ParameterAdviceHistory>>() {}.type
+                gson.fromJson<Map<String, ParameterAdviceHistory>>(json, type) ?: emptyMap()
+            } else {
+                emptyMap()
+            }
+        } catch (e: Exception) {
+            emptyMap()
+        }
+    }
+
+    private fun saveAdviceHistory(history: Map<String, ParameterAdviceHistory>) {
+        try {
+            val json = gson.toJson(history)
+            prefs.edit().putString("parameter_advice_history", json).apply()
+        } catch (e: Exception) {
+            // Logging
+        }
+    }
+
+    private fun updateAdviceHistory(newAdvice: ParameterAgressivenessAdvice) {
+        val history = loadAdviceHistory().toMutableMap()
+        val parameterHistory = history.getOrPut(newAdvice.parameterName) {
+            ParameterAdviceHistory(parameterName = newAdvice.parameterName)
+        }
+
+        val historicalAdvice = HistoricalAdvice(
+            timestamp = DateTime.now(),
+            recommendedValue = newAdvice.recommendedValue,
+            changeDirection = newAdvice.changeDirection,
+            confidence = newAdvice.confidence,
+            reason = newAdvice.reason
+        )
+
+        parameterHistory.adviceHistory.add(historicalAdvice)
+
+        // Beperk geschiedenis tot laatste 10 adviezen
+        if (parameterHistory.adviceHistory.size > 10) {
+            parameterHistory.adviceHistory.removeAt(0)
+        }
+
+        saveAdviceHistory(history)
+    }
+
     private fun loadParameterAdjustments(): List<ParameterAdjustmentResult> {
         return try {
             val json = prefs.getString("parameter_adjustments", null)
@@ -1250,6 +1825,11 @@ class FCLMetrics(private val context: Context, private val preferences: Preferen
         } catch (e: Exception) {
             emptyList()
         }
+    }
+
+    private fun round(value: Double, digits: Int): Double {
+        val scale = Math.pow(10.0, digits.toDouble())
+        return Math.round(value * scale) / scale
     }
 
     fun getParameterLearningStatus(): String {

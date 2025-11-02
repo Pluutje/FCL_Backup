@@ -80,6 +80,7 @@ enum class IntKey(
     bolus_perc_early("bolus_perc_early", 100,10,200),
     bolus_perc_mid("bolus_perc_mid", 60,10,200),
     bolus_perc_late("bolus_perc_late", 30,10,200),
+    IOB_strongRise_perc("IOB_strongRise_perc", 100,100,125),
     IOB_corr_perc("IOB_corr_perc", 100,50,150),
 
     carb_percentage("carb_percentage", 100,10,200),
@@ -87,9 +88,6 @@ enum class IntKey(
     tau_absorption_minutes("tau_absorption_minutes", 40,20,60),
     hypo_risk_percentage("hypo_risk_percentage", 35,20,50),
 
-    hypoRecoveryMinutes("hypoRecoveryMinutes", 90,45,120),
-    min_recovery_days("min_recovery_days", 2,1,3),
-    max_recovery_days("max_recovery_days", 7,3,10),
 
     persistent_CoolDown("persistent_CoolDown", 15,10,45),
 

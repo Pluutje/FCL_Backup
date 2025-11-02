@@ -279,21 +279,6 @@ class FCLParameters(private val preferences: Preferences) {
     }
 
 
- /*   fun getParameterSummary(): String {
-        val highImpact = getHighImpactParameters()
-
-        return buildString {
-            append("=== FCL PARAMETER OVERZICHT ===\n")
-            append("Totaal parameters: ${getAllParameters().size}\n")
-            append("Hoog impact parameters: ${highImpact.size}\n\n")
-
-            highImpact.forEach { (name, value) ->
-                append("🔴 $name: ${round(value.current, 2)} (${value.definition.description})\n")
-            }
-        }
-    }   */
-
-
 
     private fun round(value: Double, digits: Int): Double {
         val scale = Math.pow(10.0, digits.toDouble())

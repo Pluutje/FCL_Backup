@@ -6,120 +6,194 @@ import app.aaps.core.keys.BooleanKey
 import app.aaps.core.keys.DoubleKey
 import app.aaps.core.keys.IntKey
 import app.aaps.core.keys.Preferences
+import org.joda.time.DateTime
 
 class FCLActivity(
     private val preferences: Preferences,
-    private val context: Context  // ← NIEUW: context parameter toegevoegd
+    private val context: Context
 ) {
 
     data class ActivityResult(
         val percentage: Double,
         val targetAdjust: Double,
-        val log: String
+        val log: String,
+        val retention: Int,
+        val isActive: Boolean
     )
 
     private var consecutiveStepTriggers: Int = 0
+    private var consecutiveLowTriggers: Int = 0
+    private var lastStepUpdate: DateTime = DateTime.now()
 
-    // ★★★ NIEUW: SharedPreferences voor stap retentie ★★★
+    // ★★★ ROBUUSTE DATA VALIDATIE ★★★
     private val prefs: SharedPreferences = context.getSharedPreferences("FCL_Learning_Data", Context.MODE_PRIVATE)
+    private val STEP_DATA_TIMEOUT_MINUTES = 15L // Timeout voor verouderde stapdata
 
-    // ★★★ NIEUW: Stap retentie opslag functies ★★★
+    // ★★★ RETENTIE OPSLAG MET TIMESTAMP ★★★
     fun saveStapRetentie(retentie: Int) {
         prefs.edit().putInt("stap_retentie", retentie).apply()
+        prefs.edit().putLong("last_retention_update", DateTime.now().millis).apply()
     }
 
     fun loadStapRetentie(): Int {
         return prefs.getInt("stap_retentie", 0)
     }
 
-    fun berekenStappenAdjustment(DetermineStap5min: Int, DetermineStap30min: Int): ActivityResult {
+    // ★★★ NIEUW: Controleer of stapdata recent is ★★★
+    private fun isStepDataRecent(lastUpdateTime: Long): Boolean {
+        val minutesSinceUpdate = (DateTime.now().millis - lastUpdateTime) / (1000 * 60)
+        return minutesSinceUpdate <= STEP_DATA_TIMEOUT_MINUTES
+    }
+
+    // ★★★ NIEUW: Auto-reset bij verouderde data ★★★
+    private fun autoResetIfStale() {
+        val lastUpdate = prefs.getLong("last_retention_update", 0)
+        if (lastUpdate > 0) {
+            val minutesSinceUpdate = (DateTime.now().millis - lastUpdate) / (1000 * 60)
+            if (minutesSinceUpdate > STEP_DATA_TIMEOUT_MINUTES * 2) {
+                // Data is te oud, reset retentie
+                saveStapRetentie(0)
+                consecutiveStepTriggers = 0
+                consecutiveLowTriggers = 0
+            }
+        }
+    }
+
+    // ★★★ VERBETERDE HOOFDFUNCTIE MET DATA VALIDATIE ★★★
+    fun berekenStappenAdjustment(
+        DetermineStap5min: Int,
+        DetermineStap30min: Int,
+        lastStepUpdateTime: Long? = null
+    ): ActivityResult {
         try {
-            var StapRetentie = loadStapRetentie()  // ← NIEUW: gebruik eigen functie
+            // ★★★ AUTO-RESET BIJ VEROUDERDE DATA ★★★
+            autoResetIfStale()
+
+            var StapRetentie = loadStapRetentie()
             var log_Stappen = ""
             var stap_perc = 100.0
             var stap_target_adjust = 0.0
 
-            // ★★★ DYNAMISCHE THRESHOLDS ★★★
             val Threshold5 = preferences.get(IntKey.stap_5minuten)
             val retentieStappen = preferences.get(IntKey.stap_retentie)
+
+            // ★★★ DATA VALIDATIE ★★★
+            val isDataValid = lastStepUpdateTime == null || isStepDataRecent(lastStepUpdateTime)
+
+            if (!isDataValid) {
+                log_Stappen += "⚠️ Verouderde stapdata - gebruik veilige modus\n"
+                // Behoud huidige retentie maar forceer geen veranderingen
+                return ActivityResult(
+                    percentage = if (StapRetentie > 0) preferences.get(IntKey.stap_activiteteitPerc).toDouble() else 100.0,
+                    targetAdjust = if (StapRetentie > 0) preferences.get(DoubleKey.stap_TT) else 0.0,
+                    log = log_Stappen,
+                    retention = StapRetentie,
+                    isActive = StapRetentie > 0
+                )
+            }
 
             log_Stappen += "● 5 minutes: $DetermineStap5min steps\n"
             log_Stappen += "  Threshold: $Threshold5\n"
             log_Stappen += "  Retention: $StapRetentie/$retentieStappen\n"
-            log_Stappen += "  Consecutive triggers: $consecutiveStepTriggers/3\n"
+            log_Stappen += "  Consecutive triggers: $consecutiveStepTriggers/2\n"
+            log_Stappen += "  Low triggers: $consecutiveLowTriggers/2\n"
 
-            // ★★★ ALLEEN 5-MINUTEN STAPPEN CHECK ★★★
             val heeftVoldoendeStappen = DetermineStap5min > Threshold5
 
             if (heeftVoldoendeStappen) {
-                // Verhoog aaneengesloten triggers
                 consecutiveStepTriggers++
+                consecutiveLowTriggers = 0
 
-                // ★★★ MINIMAAL 3 AANEENGESLOTEN TRIGGERS NODIG ★★★
-                if (consecutiveStepTriggers >= 3) {
-                    StapRetentie = (StapRetentie + 1).coerceAtMost(retentieStappen)
-                    saveStapRetentie(StapRetentie)  // ← NIEUW: gebruik eigen functie
+                val benodigdeTriggers = when {
+                    StapRetentie == 0 -> 2  // Snellere initiële activering
+                    else -> 1               // Behoud sneller
+                }
 
-                    when (StapRetentie) {
-                        1 -> log_Stappen += "↗ Initial activity detected (3+ consecutive triggers)\n"
-                        retentieStappen -> log_Stappen += "↗ Maximum retention reached\n"
-                        else -> log_Stappen += "↗ Building retention\n"
+                if (consecutiveStepTriggers >= benodigdeTriggers) {
+                    val nieuweRetentie = (StapRetentie + 1).coerceAtMost(retentieStappen)
+                    if (nieuweRetentie > StapRetentie) {
+                        StapRetentie = nieuweRetentie
+                        saveStapRetentie(StapRetentie)
+
+                        when (StapRetentie) {
+                            1 -> log_Stappen += "↗ Snelle activiteit gedetecteerd (${consecutiveStepTriggers} triggers)\n"
+                            retentieStappen -> log_Stappen += "↗ Maximale retentie bereikt\n"
+                            else -> log_Stappen += "↗ Retentie opbouw\n"
+                        }
                     }
                 } else {
-                    log_Stappen += "→ Building up consecutive triggers ($consecutiveStepTriggers/3)\n"
+                    log_Stappen += "→ Opbouw triggers ($consecutiveStepTriggers/$benodigdeTriggers)\n"
                 }
             } else {
-                // ★★★ RESET AANEENGESLOTEN TRIGGERS BIJ ONVOLDOENDE STAPPEN ★★★
-                if (consecutiveStepTriggers > 0) {
-                    consecutiveStepTriggers = 0
-                    log_Stappen += "→ Reset consecutive triggers (0/3)\n"
-                }
+                consecutiveStepTriggers = 0
+                consecutiveLowTriggers++
 
-                // Afbouw logica alleen als retentie al actief is
+                log_Stappen += "→ Reset triggers (0/2), lage teller: $consecutiveLowTriggers/2\n"
+
                 if (StapRetentie > 0) {
-                    val afbouwSnelheid = when {
-                        StapRetentie >= 3 -> 0.3
-                        StapRetentie == 2 -> 0.5
-                        else -> 1.0
+                    val shouldDecrease = when {
+                        consecutiveLowTriggers >= 3 -> true
+                        consecutiveLowTriggers >= 2 -> Math.random() < 0.8
+                        else -> Math.random() < 0.5
                     }
-
-                    val shouldDecrease = Math.random() < afbouwSnelheid
 
                     if (shouldDecrease && StapRetentie > 0) {
                         StapRetentie = StapRetentie - 1
-                        saveStapRetentie(StapRetentie)  // ← NIEUW: gebruik eigen functie
-                        log_Stappen += when {
-                            StapRetentie == 0 -> "↘ Activity stopped\n"
-                            else -> "↘ Decreasing retention (slow decay)\n"
+                        saveStapRetentie(StapRetentie)
+
+                        when {
+                            StapRetentie == 0 -> {
+                                log_Stappen += "↘ Activiteit gestopt\n"
+                                consecutiveLowTriggers = 0
+                            }
+                            else -> log_Stappen += "↘ Afbouw retentie\n"
                         }
                     } else if (StapRetentie > 0) {
-                        log_Stappen += "→ Below threshold but maintaining retention\n"
+                        log_Stappen += "→ Onder threshold maar behoud retentie\n"
                     }
                 } else {
-                    log_Stappen += "→ Below threshold, no active retention\n"
+                    log_Stappen += "→ Onder threshold, geen actieve retentie\n"
                 }
             }
 
             // ★★★ ACTIVITEIT TOEPASSEN ★★★
-            if (StapRetentie > 0) {
+            val isActive = StapRetentie > 0
+            if (isActive) {
                 stap_perc = preferences.get(IntKey.stap_activiteteitPerc).toDouble()
                 stap_target_adjust = preferences.get(DoubleKey.stap_TT)
 
                 when (StapRetentie) {
-                    1 -> log_Stappen += "● Initial activity → Insulin $stap_perc% → Target: ${"%.1f".format(stap_target_adjust)} mmol/L\n"
-                    2 -> log_Stappen += "● Medium retention → Insulin $stap_perc% → Target: ${"%.1f".format(stap_target_adjust)} mmol/L\n"
-                    else -> log_Stappen += "● High retention → Insulin $stap_perc% → Target: ${"%.1f".format(stap_target_adjust)} mmol/L\n"
+                    1 -> log_Stappen += "● Initiële activiteit → Insulin $stap_perc% → Target: ${"%.1f".format(stap_target_adjust)} mmol/L\n"
+                    2 -> log_Stappen += "● Medium retentie → Insulin $stap_perc% → Target: ${"%.1f".format(stap_target_adjust)} mmol/L\n"
+                    else -> log_Stappen += "● Hoge retentie → Insulin $stap_perc% → Target: ${"%.1f".format(stap_target_adjust)} mmol/L\n"
                 }
             } else {
                 stap_perc = 100.0
-                log_Stappen += "● No activity → Insulin ${stap_perc.toInt()}% Target ${"%.1f".format(stap_target_adjust)}mmol/l\n"
+                stap_target_adjust = 0.0
+                log_Stappen += "● Geen activiteit → Insulin ${stap_perc.toInt()}% Target ${"%.1f".format(stap_target_adjust)}mmol/l\n"
             }
 
-            return ActivityResult(stap_perc, stap_target_adjust, log_Stappen)
+            // ★★★ UPDATE LAATSTE ACTIVITEIT ★★★
+            lastStepUpdate = DateTime.now()
+
+            return ActivityResult(stap_perc, stap_target_adjust, log_Stappen, StapRetentie, isActive)
 
         } catch (e: Exception) {
-            // Foutafhandeling - return default values bij error
-            return ActivityResult(100.0, 0.0, "Error in step calculation")
+            return ActivityResult(100.0, 0.0, "Error in step calculation: ${e.message}", 0, false)
         }
+    }
+
+    // ★★★ NIEUW: Forceer reset van activiteit ★★★
+    fun resetActivity() {
+        saveStapRetentie(0)
+        consecutiveStepTriggers = 0
+        consecutiveLowTriggers = 0
+    }
+
+    // ★★★ NIEUW: Haal huidige retentie status op ★★★
+    fun getCurrentActivityStatus(): String {
+        val retention = loadStapRetentie()
+        val maxRetention = preferences.get(IntKey.stap_retentie)
+        return "Retentie: $retention/$maxRetention, Triggers: $consecutiveStepTriggers, Lage triggers: $consecutiveLowTriggers"
     }
 }

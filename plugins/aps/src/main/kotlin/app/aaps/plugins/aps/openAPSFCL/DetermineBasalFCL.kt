@@ -223,15 +223,35 @@ class DetermineBasalFCL @Inject constructor(
             FCLMetrics.setTargetBg(target/18)
 
             if (preferences.get(BooleanKey.stappenAanUit)) {
-                val now = System.currentTimeMillis()
-                val timeMillis60 = now - 60 * 60 * 1000 // 180 minutes en millisecondes
-                val SC = persistenceLayer.getStepsCountFromTime(timeMillis60)
-                if (SC.isNotEmpty()) {
-                    val currentSC = SC.last() // ✅ nieuwste stapdata
-                    fcl.set5minStap(currentSC.steps5min)
-                    fcl.set30minStap(currentSC.steps30min)
-                 }
+                try {
+                    val now = System.currentTimeMillis()
+                    val timeMillis60 = now - 60 * 60 * 1000 // 60 minutes in milliseconds
 
+                    val SC = persistenceLayer.getStepsCountFromTime(timeMillis60)
+                    if (SC.isNotEmpty()) {
+                        val currentSC = SC.last() // ✅ nieuwste stapdata
+
+                        // ★★★ ROBUUSTE DOORGEVING MET ERROR HANDLING ★★★
+                        fcl.set5minStap(currentSC.steps5min)
+                        fcl.set30minStap(currentSC.steps30min)
+
+
+                    } else {
+                        // ★★★ GEEN DATA - ZET VEILIGE WAARDEN ★★★
+                        fcl.set5minStap(0)
+                        fcl.set30minStap(0)
+
+                    }
+                } catch (e: Exception) {
+                    // ★★★ ERROR HANDLING ★★★
+
+                    fcl.set5minStap(0)
+                    fcl.set30minStap(0)
+                }
+            } else {
+                // ★★★ EXPLICIETE UIT-SCHAKELING ★★★
+                fcl.set5minStap(0)
+                fcl.set30minStap(0)
             }
 
 
@@ -311,6 +331,7 @@ class DetermineBasalFCL @Inject constructor(
             "max_bolus" to round(preferences.get(DoubleKey.max_bolus),2).toString(),
             "max_basaal" to round(preferences.get(DoubleKey.ApsMaxBasal),2).toString(),
             "max_IOB" to round(preferences.get(DoubleKey.ApsSmbMaxIob),2).toString(),
+            "IOB_strongRise_perc" to preferences.get(IntKey.IOB_strongRise_perc).toString(),
             "IOB_corr_perc" to preferences.get(IntKey.IOB_corr_perc).toString(),
 
             // Bolus percentages
@@ -945,11 +966,12 @@ class DetermineBasalFCL @Inject constructor(
 
             rT.reason.append("=> Bolus perc: ${preferences.get(IntKey.bolus_perc_day)} SMB:  $FCL_SMB eh ")
 
-            if (iob_data.iob + FCL_SMB > max_iob) {
-              FCL_SMB = max_iob - iob_data.iob
-              FCL_SMB = round(FCL_SMB * 20, 0) / 20
-              rT.reason.append("Bolus beperkt tot $FCL_SMB eh ivm max_IOB $max_iob")
-            }
+         //   if (iob_data.iob + FCL_SMB > max_iob) {
+         //     FCL_SMB = max_iob - iob_data.iob
+         //     FCL_SMB = round(FCL_SMB * 20, 0) / 20
+         //     rT.reason.append("Bolus beperkt tot $FCL_SMB eh ivm max_IOB $max_iob")
+         //   }
+
             FCL_SMB = Math.min(preferences.get(DoubleKey.max_bolus),FCL_SMB)
 
 

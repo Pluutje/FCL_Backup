@@ -2221,10 +2221,10 @@ class FCL @Inject constructor(
     private fun getMealTypeFromHour(): String {
         val hour = DateTime.now().hourOfDay
         return when (hour) {
-            in 6..10 -> "breakfast"
+            in 6..10 -> "ontbijt"
             in 11..14 -> "lunch"
             in 17..21 -> "dinner"
-            else -> "other"
+            else -> "snack"
         }
     }
 
@@ -3233,7 +3233,7 @@ class FCL @Inject constructor(
 
 
 
-    // ★★★ NIEUWE HELPER FUNCTIES VOOR MAALTIJD ANALYSE ★★★
+/*    // ★★★ NIEUWE HELPER FUNCTIES VOOR MAALTIJD ANALYSE ★★★
     private fun getMealPerformanceSummary(meals: List<MealPerformanceMetrics>): String {
         if (meals.isEmpty()) return "  Geen maaltijd data beschikbaar"
 
@@ -3245,17 +3245,17 @@ class FCL @Inject constructor(
 
         return """
         • Totale maaltijden: ${meals.size} (laatste 7 dagen)
-        • Succesrate: ${successRate.toInt()}%
-        • Gem. piek: ${round(avgPeak, 1)} mmol/L
-        • Gem. responstijd: ${avgResponseTime.toInt()} min
+      • Succesrate: ${successRate.toInt()}%
+      • Gem. piek: ${round(avgPeak, 1)} mmol/L
+      • Gem. responstijd: ${avgResponseTime.toInt()} min
         
-    [ RECENTE MAALTIJDEN ]
-    ${recentMeals.joinToString("\n ") { meal ->
-    "${meal.mealStartTime.toString("HH:mm")} | ${meal.mealType.padEnd(9)} | " +
-     "Piek: ${round(meal.peakBG, 1)} | Bolus: ${round(meal.totalInsulinDelivered, 2)}U | " +
-     "${if (meal.wasSuccessful) "✅" else "❌"} ${meal.timeToFirstBolus}min"}}
-    """.trimIndent()
-    }
+[ RECENTE MAALTIJDEN ]
+${recentMeals.joinToString("\n ") { meal ->
+"${meal.mealStartTime.toString("HH:mm")} | ${meal.mealType.padEnd(9)} | " +
+"Piek: ${round(meal.peakBG, 1)} | Bolus: ${round(meal.totalInsulinDelivered, 2)}U | " +
+"${if (meal.wasSuccessful) "✅" else "❌"} ${meal.timeToFirstBolus}min"}}
+ """.trimIndent()
+    }    */
 
     // ★★★ ADVIES PRESENTATIE ★★★
     fun getParameterAdviceForDisplay(): List<ParameterAdviceDisplay> {
@@ -3511,23 +3511,23 @@ ${adviceList.joinToString("\n\n") { advice ->
             val highPeakMeals = recentMeals.count { it.peakBG > 11.0 }
             val hypoMeals = recentMeals.count { it.postMealHypo }
 
-            val recentMealsDisplay = recentMeals.takeLast(5).reversed().joinToString("\n        ") { meal ->
-                "${meal.mealStartTime.toString("HH:mm")} | ${meal.mealType.padEnd(9)} | " +
-                    "Piek: ${round(meal.peakBG, 1)} | Bolus: ${round(meal.totalInsulinDelivered, 2)}U | " +
-                    "${if (meal.wasSuccessful) "✅" else "❌"} ${meal.timeToFirstBolus}min"
+        val recentMealsDisplay = recentMeals.takeLast(7).reversed().joinToString("\n") { meal ->
+            "${meal.mealStartTime.toString("HH:mm")} | ${meal.mealType.padEnd(9)}| " +
+             "Piek: ${round(meal.peakBG, 1)} | Ins.:${round(meal.totalInsulinDelivered, 1)}U | " +
+             "${if (meal.wasSuccessful) "✅" else "❌"} ${meal.timeToFirstBolus}min"
             }
 
             """• Totale maaltijden: ${recentMeals.size} (laatste 7 dagen)
-        • Succesrate: ${successRate.toInt()}% ($successfulMeals/${recentMeals.size})
-        • Te hoge pieken (>11): ${highPeakMeals} maaltijden
-        • Post-maaltijd hypo's: ${hypoMeals} maaltijden
-        • Gem. piek: ${round(recentMeals.map { it.peakBG }.average(), 1)} mmol/L
-        • Gem. responstijd: ${if (recentMeals.any { it.timeToFirstBolus > 0 }) recentMeals.filter { it.timeToFirstBolus > 0 }.map { it.timeToFirstBolus }.average().toInt() else 0} min
+     • Succesrate: ${successRate.toInt()}% ($successfulMeals/${recentMeals.size})
+     • Te hoge pieken (>11): ${highPeakMeals} maaltijden
+     • Post-maaltijd hypo's: ${hypoMeals} maaltijden
+     • Gem. piek: ${round(recentMeals.map { it.peakBG }.average(), 1)} mmol/L
+     • Gem. responstijd: ${if (recentMeals.any { it.timeToFirstBolus > 0 }) recentMeals.filter { it.timeToFirstBolus > 0 }.map { it.timeToFirstBolus }.average().toInt() else 0} min
         
-        [ RECENTE MAALTIJDEN ]
-        $recentMealsDisplay"""
-        } else {
-            "  Geen maaltijd data beschikbaar - wacht op volgende maaltijd"
+[ RECENTE MAALTIJDEN ]
+$recentMealsDisplay"""
+  } else {
+"  Geen maaltijd data beschikbaar - wacht op volgende maaltijd"
         }
 
 
@@ -3575,7 +3575,7 @@ ${adviceList.joinToString("\n\n") { advice ->
 
         return """
 ╔═══════════════════
-║  ══ FCL v2.6.3 ══ 
+║  ══ FCL v2.6.4 ══ 
 ╚═══════════════════
 
 🎯 LAATSTE BOLUS BESLISSING

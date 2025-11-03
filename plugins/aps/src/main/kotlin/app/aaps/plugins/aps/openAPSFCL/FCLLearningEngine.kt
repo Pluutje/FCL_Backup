@@ -446,10 +446,10 @@ class FCLLearningEngine(
     ) {
         fun getMealTimeFactor(hour: Int): Double {
             val mealType = when (hour) {
-                in 6..10 -> "breakfast"
+                in 6..10 -> "ontbijt"
                 in 11..14 -> "lunch"
                 in 17..21 -> "dinner"
-                else -> "other"
+                else -> "snack"
             }
             return mealTimingFactors[mealType] ?: 1.0
         }

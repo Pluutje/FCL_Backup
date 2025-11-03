@@ -1707,7 +1707,7 @@ class FCLMetrics(private val context: Context, private val preferences: Preferen
     private fun determineMealType(timestamp: DateTime): String {
         val hour = timestamp.hourOfDay
         return when (hour) {
-            in 6..10 -> "breakfast"
+            in 6..10 -> "ontbijt"
             in 11..14 -> "lunch"
             in 17..21 -> "dinner"
             else -> "snack"

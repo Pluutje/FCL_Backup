@@ -86,7 +86,7 @@ enum class IntKey(
     carb_percentage("carb_percentage", 100,10,200),
     peak_damping_percentage("peak_damping_percentage", 50,10,100),
     tau_absorption_minutes("tau_absorption_minutes", 40,20,60),
-    hypo_risk_percentage("hypo_risk_percentage", 35,20,50),
+    hypo_risk_percentage("hypo_risk_percentage", 25,10,50),
 
 
     persistent_CoolDown("persistent_CoolDown", 15,10,45),

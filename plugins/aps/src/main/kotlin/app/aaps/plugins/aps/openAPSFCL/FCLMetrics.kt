@@ -122,6 +122,13 @@ class FCLMetrics(private val context: Context, private val preferences: Preferen
         val detectedCarbs: Double,
         val carbsOnBoard: Double
     )
+    // ★★★ ADVIES GESCHIEDENIS ★★★
+    data class AdviceHistoryEntry(
+        val timestamp: DateTime,
+        val adviceList: List<ParameterAgressivenessAdvice>,
+        val metricsSnapshot: GlucoseMetrics? = null,
+        val mealCount: Int = 0
+    )
 
     companion object {
         private const val TARGET_LOW = 3.9
@@ -237,9 +244,34 @@ class FCLMetrics(private val context: Context, private val preferences: Preferen
         setLastMetricsTime()
     }
 
-    // ★★★ DATA QUALITY METRICS ★★★
-    fun getDataQualityMetrics(hours: Int = 24): DataQualityMetrics {
-        if (!shouldCalculateNewMetrics() && cachedDataQuality != null && hours == 24) {
+    // ★★★ DATA QUALITY CACHE INVALIDATIE ★★★
+    fun invalidateDataQualityCache() {
+        cachedDataQuality = null
+        resetDataQualityCache()
+
+        // Forceer nieuwe berekening bij volgende aanroep
+        prefs.edit().remove("last_metrics_time").apply()
+    }
+
+    // ★★★ AUTOMATISCHE CACHE INVALIDATIE BIJ NIEUWE DATA ★★★
+    private fun shouldInvalidateCache(): Boolean {
+        val csvFile = getOrCreateCSVFile()
+        if (!csvFile.exists()) return true
+
+        val lastModified = DateTime(csvFile.lastModified())
+        val lastCacheTime = getLastMetricsTime()
+
+        return lastModified.isAfter(lastCacheTime)
+    }
+
+    // ★★★ VERBETERDE DATA QUALITY METRICS ★★★
+    fun getDataQualityMetrics(hours: Int = 24, forceRefresh: Boolean = false): DataQualityMetrics {
+        // ★★★ AUTOMATISCHE INVALIDATIE BIJ NIEUWE DATA ★★★
+        if (shouldInvalidateCache()) {
+            invalidateDataQualityCache()
+        }
+
+        if (!forceRefresh && !shouldCalculateNewMetrics() && cachedDataQuality != null && hours == 24) {
             return cachedDataQuality!!
         }
 
@@ -281,6 +313,8 @@ class FCLMetrics(private val context: Context, private val preferences: Preferen
         }
     }
 
+
+
     // ★★★ HOOFD ADVIES FUNCTIE ★★★
     fun calculateAgressivenessAdvice(
         parameters: FCLParameters,
@@ -314,6 +348,7 @@ class FCLMetrics(private val context: Context, private val preferences: Preferen
             .sortedByDescending { it.confidence }
 
         storeAdvice(finalAdvice)
+        storeAdviceHistoryEntries(finalAdvice)   // ★★★ SLA ADVIES GESCHIEDENIS OP ★★★
         setLastAdviceTime()
 
         return finalAdvice
@@ -363,7 +398,7 @@ class FCLMetrics(private val context: Context, private val preferences: Preferen
                 "Late Rise Slope" -> preferences.get(DoubleKey.phase_late_rise_slope)
                 "Carb Detection %" -> preferences.get(IntKey.carb_percentage).toDouble()
                 "Peak Damping %" -> preferences.get(IntKey.peak_damping_percentage).toDouble()
-                "Hypo Risk Reduction %" -> preferences.get(IntKey.hypo_risk_percentage).toDouble()
+                "Hypo Risk Bolus %" -> preferences.get(IntKey.hypo_risk_percentage).toDouble()
                 "IOB Safety %" -> preferences.get(IntKey.IOB_corr_perc).toDouble()
                 else -> {
                     // Probeer parameter via FCLParameters naam
@@ -462,6 +497,8 @@ class FCLMetrics(private val context: Context, private val preferences: Preferen
             }
         }
     }
+
+
 
     private fun analyzeParameterTrend(history: List<HistoricalAdvice>): String {
         if (history.size < 2) return "STABLE"
@@ -736,26 +773,27 @@ class FCLMetrics(private val context: Context, private val preferences: Preferen
         )
     }
 
+
     private fun createHypoSafetyAdvice(
         parameters: FCLParameters,
         hypoPercentage: Double,
         successRate: Double
     ): ParameterAgressivenessAdvice {
-        val parameterName = "Hypo Risk Reduction %"
+        val parameterName = "Hypo Risk Bolus %"
         val currentValue = getCurrentParameterValue(parameters, parameterName)
         val definition = getParameterDefinition(parameters, parameterName)
 
-        val minValue = definition?.minValue ?: 20.0
+        val minValue = definition?.minValue ?: 10.0
         val maxValue = definition?.maxValue ?: 50.0
 
         return ParameterAgressivenessAdvice(
             parameterName = parameterName,
             currentValue = currentValue,
-            recommendedValue = calculateOptimalIncrease(currentValue, maxValue),
+            recommendedValue = calculateOptimalDecrease(currentValue, minValue), // ← CORRECTIE: gebruik DECREASE
             reason = "Hoge hypo ratio: ${hypoPercentage.toInt()}% van maaltijden met hypo (successRate: ${(successRate * 100).toInt()}%)",
             confidence = 0.8,
             expectedImprovement = "Verlaag hypo's met ~${(hypoPercentage * 0.5).toInt()}%",
-            changeDirection = "INCREASE"
+            changeDirection = "DECREASE"
         )
     }
 
@@ -803,7 +841,7 @@ class FCLMetrics(private val context: Context, private val preferences: Preferen
                 successRate
             )
             "post_meal_hypos" -> createParameterAdvice(
-                parameters, "Hypo Risk Reduction %", "INCREASE",
+                parameters, "Hypo Risk Bolus %", "DECREASE",
                 "Post-maaltijd hypo's in ${(mealMetrics.count { it.postMealHypo }.toDouble() / mealMetrics.size * 100).toInt()}% van maaltijden",
                 successRate
             )
@@ -856,7 +894,7 @@ class FCLMetrics(private val context: Context, private val preferences: Preferen
             "Late Rise Slope" -> 0.1
             "Carb Detection %" -> 10.0
             "Peak Damping %" -> 10.0
-            "Hypo Risk Reduction %" -> 20.0
+            "Hypo Risk Bolus %" -> 10.0
             "IOB Safety %" -> 50.0
             else -> 0.0
         }
@@ -871,7 +909,7 @@ class FCLMetrics(private val context: Context, private val preferences: Preferen
             "Late Rise Slope" -> 1.0
             "Carb Detection %" -> 200.0
             "Peak Damping %" -> 100.0
-            "Hypo Risk Reduction %" -> 50.0
+            "Hypo Risk Bolus %" -> 50.0
             "IOB Safety %" -> 150.0
             else -> 100.0
         }
@@ -1765,6 +1803,61 @@ class FCLMetrics(private val context: Context, private val preferences: Preferen
             // Logging
         }
     }
+
+
+    private fun storeAdviceHistoryEntries(advice: List<ParameterAgressivenessAdvice>) {
+        try {
+            val history = loadAdviceHistoryEntries().toMutableList()
+
+            val newEntry = AdviceHistoryEntry(
+                timestamp = DateTime.now(),
+                adviceList = advice,
+                metricsSnapshot = calculateMetrics(24), // Houd metrics snapshot bij
+                mealCount = calculateMealPerformanceMetrics(168).size
+            )
+
+            history.add(0, newEntry) // Nieuwe entries bovenaan
+
+            // Beperk tot laatste 50 adviezen of 7 dagen
+            val cutoffTime = DateTime.now().minusDays(7)
+            val filteredHistory = history
+                .filter { it.timestamp.isAfter(cutoffTime) }
+                .take(50)
+
+            val json = gson.toJson(filteredHistory)
+            prefs.edit().putString("advice_history_entries", json).apply() // Andere preference key
+        } catch (e: Exception) {
+            // Logging
+        }
+    }
+
+    private fun loadAdviceHistoryEntries(): List<AdviceHistoryEntry> {
+        return try {
+            val json = prefs.getString("advice_history_entries", null)
+            if (json != null) {
+                val type = object : com.google.gson.reflect.TypeToken<List<AdviceHistoryEntry>>() {}.type
+                gson.fromJson<List<AdviceHistoryEntry>>(json, type) ?: emptyList()
+            } else {
+                emptyList()
+            }
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+
+    // Public functie om adviesgeschiedenis op te halen
+    fun getAdviceHistoryEntries(days: Int = 5): List<AdviceHistoryEntry> {
+        val cutoffTime = DateTime.now().minusDays(days)
+        return loadAdviceHistoryEntries().filter { it.timestamp.isAfter(cutoffTime) }
+    }
+
+    // Functie om specifiek advies te vinden voor een parameter
+    fun getParameterAdviceHistory(parameterName: String, days: Int = 7): List<ParameterAgressivenessAdvice> {
+        return getAdviceHistoryEntries(days).flatMap { entry ->
+            entry.adviceList.filter { it.parameterName == parameterName }
+        }
+    }
+
 
     private fun loadAdviceHistory(): Map<String, ParameterAdviceHistory> {
         return try {

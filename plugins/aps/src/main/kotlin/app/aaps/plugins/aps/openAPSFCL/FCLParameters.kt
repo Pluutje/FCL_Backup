@@ -193,12 +193,12 @@ class FCLParameters(private val preferences: Preferences) {
         ),
         ParameterDefinition(
             key = IntKey.hypo_risk_percentage,
-            name = "Hypo Risk Reduction %",
+            name = "Hypo Risk Bolus %",
             category = "SAFETY",
-            minValue = 20.0,
+            minValue = 10.0,
             maxValue = 50.0,
-            defaultValue = 35.0,
-            description = "Percentage bolus reductie bij hypo risico",
+            defaultValue = 25.0,
+            description = "Bolus Percentage bij hypo risico",
             impactLevel = "HIGH"
         ),
         ParameterDefinition(
@@ -259,7 +259,6 @@ class FCLParameters(private val preferences: Preferences) {
         val highImpact = getHighImpactParameters()
 
         return buildString {
-            append("=== FCL PARAMETER OVERZICHT ===\n")
             append("Totaal parameters: ${getAllParameters().size}\n")
             append("Hoog impact parameters: ${highImpact.size}\n\n")
 

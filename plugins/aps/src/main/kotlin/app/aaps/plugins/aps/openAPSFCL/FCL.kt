@@ -3047,14 +3047,6 @@ class FCL @Inject constructor(
                 }
             }.toString()
 
-         /*   // ★★★ LOG FINALE BESLISSING ★★★
-            logMealDataForAnalysis(
-                currentData = currentData,
-                detectedCarbs = finalDetectedCarbs,
-                mealDetected = finalMealDetected,
-                dose = finalDose,
-                reason = finalReason
-            )   */
 
             // === Centrale return ===
             val enhancedAdvice = EnhancedInsulinAdvice(
@@ -3339,6 +3331,55 @@ class FCL @Inject constructor(
     """.trimIndent()
     }
 
+    // ★★★ ADVIES GESCHIEDENIS WEERGAVE ★★★
+    private fun getAdviceHistorySection(): String {
+        val history = metricsHelper.getAdviceHistoryEntries(5) // Laatste 5 dagen
+
+        if (history.isEmpty()) {
+            return """📜 ADVIES GESCHIEDENIS
+─────────────────────
+Geen adviezen in de afgelopen 5 dagen"""
+        }
+
+        return buildString {
+            append("📜 ADVIES GESCHIEDENIS (laatste 5 dagen)\n")
+            append("─────────────────────\n")
+
+            history.take(10).forEachIndexed { index, entry ->
+                val timeAgo = when {
+                    Minutes.minutesBetween(entry.timestamp, DateTime.now()).minutes < 60 ->
+                        "${Minutes.minutesBetween(entry.timestamp, DateTime.now()).minutes} min geleden"
+                    Hours.hoursBetween(entry.timestamp, DateTime.now()).hours < 24 ->
+                        "${Hours.hoursBetween(entry.timestamp, DateTime.now()).hours} uur geleden"
+                    else ->
+                        "${Days.daysBetween(entry.timestamp, DateTime.now()).days} dagen geleden"
+                }
+
+                append("${index + 1}. [${entry.timestamp.toString("dd-MM HH:mm")}] - $timeAgo\n")
+                append("   Maaltijden: ${entry.mealCount} | TIR: ${entry.metricsSnapshot?.timeInRange?.toInt() ?: 0}%\n")
+
+                entry.adviceList.take(3).forEach { advice ->
+                    val arrow = when (advice.changeDirection) {
+                        "INCREASE" -> "⬆️"
+                        "DECREASE" -> "⬇️"
+                        else -> "➡️"
+                    }
+                    append("   $arrow ${advice.parameterName}: ${advice.currentValue} → ${advice.recommendedValue}\n")
+                    append("      Reden: ${advice.reason.take(60)}${if (advice.reason.length > 60) "..." else ""}\n")
+                }
+
+                if (entry.adviceList.size > 3) {
+                    append("   ... +${entry.adviceList.size - 3} meer adviezen\n")
+                }
+                append("\n")
+            }
+
+            if (history.size > 10) {
+                append("... en ${history.size - 10} eerdere adviezen\n")
+            }
+        }
+    }
+
 
 
     // ★★★ MAALTIJD-GERICHTE STATUS WEERGAVE ★★★
@@ -3358,7 +3399,8 @@ class FCL @Inject constructor(
             Pair(m24, m168)
         }
 
-        val dataQuality24h = metricsHelper.getDataQualityMetrics(24)
+        metricsHelper.invalidateDataQualityCache()
+        val dataQuality24h = metricsHelper.getDataQualityMetrics(24, true)
 
         // ★★★ MAALTIJD METRICS ★★★
         val mealMetrics = metricsHelper.calculateMealPerformanceMetrics(168)
@@ -3534,7 +3576,7 @@ ${adviceList.joinToString("\n\n") { advice ->
 
         return """
 ╔═══════════════════
-║  ══ FCL v2.5.1 ══ 
+║  ══ FCL v2.6.2 ══ 
 ╚═══════════════════
 
 🎯 LAATSTE BOLUS BESLISSING
@@ -3633,14 +3675,6 @@ ${resistanceHelper.getCurrentResistanceLog().split("\n").joinToString("\n  ") { 
 ─────────────────────
 $mealPerformanceSummary
 
-🎯 PARAMETER LEARNING SYSTEEM  
-─────────────────────
-${metricsHelper.getParameterLearningStatus()}
-
-⚙️ PARAMETERS CONFIGURATIE OVERZICHT
-─────────────────────
-$parameterSummary
-
 📊 GLUCOSE METRICS & PERFORMANCE
 ─────────────────────
 [⏰ TIMING & CACHING]
@@ -3675,6 +3709,16 @@ $adviceSection
 🎯 PARAMETER OPTIMALISATIE ADVIES
 ─────────────────────
 ${parameterAdviceSection}
+
+ PARAMETER LEARNING SYSTEEM  
+─────────────────────
+${metricsHelper.getParameterLearningStatus()}
+
+ PARAMETERS CONFIGURATIE OVERZICHT
+─────────────────────
+$parameterSummary
+
+${getAdviceHistorySection()}
         
         
 """.trimIndent()

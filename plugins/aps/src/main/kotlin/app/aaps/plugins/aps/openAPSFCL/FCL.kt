@@ -3249,12 +3249,11 @@ class FCL @Inject constructor(
         • Gem. piek: ${round(avgPeak, 1)} mmol/L
         • Gem. responstijd: ${avgResponseTime.toInt()} min
         
-        [ RECENTE MAALTIJDEN ]
-        ${recentMeals.joinToString("\n        ") { meal ->
-            "${meal.mealStartTime.toString("HH:mm")} | ${meal.mealType.padEnd(9)} | " +
-                "Piek: ${round(meal.peakBG, 1)} | Bolus: ${round(meal.totalInsulinDelivered, 2)}U | " +
-                "${if (meal.wasSuccessful) "✅" else "❌"} ${meal.timeToFirstBolus}min"
-        }}
+    [ RECENTE MAALTIJDEN ]
+    ${recentMeals.joinToString("\n ") { meal ->
+    "${meal.mealStartTime.toString("HH:mm")} | ${meal.mealType.padEnd(9)} | " +
+     "Piek: ${round(meal.peakBG, 1)} | Bolus: ${round(meal.totalInsulinDelivered, 2)}U | " +
+     "${if (meal.wasSuccessful) "✅" else "❌"} ${meal.timeToFirstBolus}min"}}
     """.trimIndent()
     }
 
@@ -3576,7 +3575,7 @@ ${adviceList.joinToString("\n\n") { advice ->
 
         return """
 ╔═══════════════════
-║  ══ FCL v2.6.2 ══ 
+║  ══ FCL v2.6.3 ══ 
 ╚═══════════════════
 
 🎯 LAATSTE BOLUS BESLISSING
@@ -3678,11 +3677,7 @@ $mealPerformanceSummary
 📊 GLUCOSE METRICS & PERFORMANCE
 ─────────────────────
 [⏰ TIMING & CACHING]
-• laatste Metrics: $metricsAge geleden
 • Volgende metrics: over ${nextMetricsUpdate} minuten
-• laatste Advies: $adviceAge
-• Volgende advies: over ${nextAdviceUpdate} uur
-• Advies interval: $adviceInterval uur
 • Maaltijden geanalyseerd: ${recentMeals.size}
 
 [ DATA KWALITEIT - 24U ]
@@ -3723,6 +3718,14 @@ ${getAdviceHistorySection()}
         
 """.trimIndent()
     }
+//    Backup maaltijden
+ //   [⏰ TIMING & CACHING]
+ //   • laatste Metrics: $metricsAge geleden
+ //   • Volgende metrics: over ${nextMetricsUpdate} minuten
+ //   • laatste Advies: $adviceAge
+ //   • Volgende advies: over ${nextAdviceUpdate} uur
+ //   • Advies interval: $adviceInterval uur
+ //   • Maaltijden geanalyseerd: ${recentMeals.size}
 
     private fun getActivityStatusText(retention: Int): String {
         return when (retention) {

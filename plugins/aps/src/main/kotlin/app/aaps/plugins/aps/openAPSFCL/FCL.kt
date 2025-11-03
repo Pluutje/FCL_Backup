@@ -3410,6 +3410,31 @@ Geen adviezen in de afgelopen 5 dagen"""
             0.0
         }
 
+        // ★★★ BIDIRECTIONELE PRESTATIE ANALYSE ★★★
+        val performanceAnalyses = metricsHelper.analyzeBidirectionalPerformance(metrics24h, recentMeals)
+        val topAnalysis = performanceAnalyses.firstOrNull()
+        val performanceSection = if (topAnalysis != null) {
+            """🎯 PRESTATIE ANALYSE - BIDIRECTIONEEL
+─────────────────────
+• Hoofdprobleem: ${when (topAnalysis.issueType) {
+                "HIGH_PEAKS" -> "Te hoge pieken"
+                "PERSISTENT_HIGH" -> "Aanhoudend hoge glucose"
+                "FREQUENT_HYPOS" -> "Te veel hypo's"
+                "PERSISTENT_LOW" -> "Aanhoudend lage glucose"
+                "RAPID_DECLINES" -> "Snelle dalingen"
+                "MIXED_HIGH_LOW" -> "Gemengde problemen"
+                else -> "Optimaal"
+            }}
+• Ernst: ${(topAnalysis.severity * 100).toInt()}%
+• Aanbevolen actie: ${topAnalysis.adjustmentDirection} ${topAnalysis.primaryParameter}
+• Reden: ${topAnalysis.reasoning}"""
+        } else {
+            """🎯 PRESTATIE ANALYSE - BIDIRECTIONEEL
+─────────────────────
+✅ Geen significante problemen gedetecteerd
+   Glucosewaarden binnen acceptabele marges"""
+        }
+
         // ★★★ CONDITIONEEL ADVIES BEREKENING ★★★
         val agressivenessAdvice = if (shouldUpdateAdvice()) {
             lastAdviceUpdate = DateTime.now()
@@ -3575,7 +3600,7 @@ $recentMealsDisplay"""
 
         return """
 ╔═══════════════════
-║  ══ FCL v2.6.4 ══ 
+║  ══ FCL v2.7.0 ══ 
 ╚═══════════════════
 
 🎯 LAATSTE BOLUS BESLISSING
@@ -3673,6 +3698,8 @@ ${resistanceHelper.getCurrentResistanceLog().split("\n").joinToString("\n  ") { 
 📊 MAALTIJD PRESTATIE ANALYSE
 ─────────────────────
 $mealPerformanceSummary
+
+$performanceSection
 
 📊 GLUCOSE METRICS & PERFORMANCE
 ─────────────────────

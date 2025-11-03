@@ -130,6 +130,16 @@ class FCLMetrics(private val context: Context, private val preferences: Preferen
         val mealCount: Int = 0
     )
 
+    // ★★★ BIDIRECTIONELE PRESTATIE ANALYSE ★★★
+    data class PerformanceAnalysis(
+        val issueType: String, // "HIGH_BG", "LOW_BG", "BOTH", "OPTIMAL"
+        val severity: Double, // 0.0 - 1.0
+        val primaryParameter: String,
+        val adjustmentDirection: String, // "INCREASE", "DECREASE"
+        val confidence: Double,
+        val reasoning: String
+    )
+
     companion object {
         private const val TARGET_LOW = 3.9
         private const val TARGET_HIGH = 10.0
@@ -164,6 +174,10 @@ class FCLMetrics(private val context: Context, private val preferences: Preferen
         cached7dMetrics = null
         cachedDataQuality = null
         cachedMealMetrics.clear()
+
+        // ★★★ FORCEER NIEUWE BEREKENING ★★★
+        prefs.edit().remove("last_metrics_time").apply()
+        prefs.edit().remove("last_advice_time").apply()
     }
 
     fun resetMetricsCache() {
@@ -384,6 +398,282 @@ class FCLMetrics(private val context: Context, private val preferences: Preferen
         }
     }
 
+
+
+    // ★★★ BIDIRECTIONELE PRESTATIE ANALYSE FUNCTIES ★★★
+    fun analyzeBidirectionalPerformance(
+        metrics: GlucoseMetrics,
+        mealMetrics: List<MealPerformanceMetrics>
+    ): List<PerformanceAnalysis> {
+        val analyses = mutableListOf<PerformanceAnalysis>()
+
+        // ★★★ ANALYSE VOOR TE HOGE BLOEDSUIKER ★★★
+        if (metrics.timeAboveRange > 25.0 || metrics.averageGlucose > 8.5) {
+            analyses.add(analyzeHighBGIssues(metrics, mealMetrics))
+        }
+
+        // ★★★ ANALYSE VOOR TE LAGE BLOEDSUIKER ★★★
+        if (metrics.timeBelowRange > 5.0 || metrics.lowEvents + metrics.veryLowEvents > 2) {
+            analyses.add(analyzeLowBGIssues(metrics, mealMetrics))
+        }
+
+        // ★★★ GEMENGDE PROBLEMEN ANALYSE ★★★
+        if (metrics.timeAboveRange > 20.0 && metrics.timeBelowRange > 4.0) {
+            analyses.add(analyzeMixedIssues(metrics, mealMetrics))
+        }
+
+        return analyses.sortedByDescending { it.severity }
+    }
+
+    private fun analyzeHighBGIssues(
+        metrics: GlucoseMetrics,
+        mealMetrics: List<MealPerformanceMetrics>
+    ): PerformanceAnalysis {
+        val highPeakMeals = mealMetrics.count { it.peakBG > 11.0 }
+        val highPeakPercentage = if (mealMetrics.isNotEmpty()) (highPeakMeals.toDouble() / mealMetrics.size) * 100 else 0.0
+
+        val severity = calculateHighBGSeverity(metrics, highPeakPercentage)
+
+        return when {
+            highPeakPercentage > 40 -> PerformanceAnalysis(
+                issueType = "HIGH_PEAKS",
+                severity = severity,
+                primaryParameter = "Early Rise Bolus %",
+                adjustmentDirection = "INCREASE",
+                confidence = min(0.9, severity * 1.2),
+                reasoning = "${highPeakPercentage.toInt()}% van maaltijden heeft pieken >11 mmol/L - verhoog vroege bolus"
+            )
+            metrics.timeAboveRange > 30 -> PerformanceAnalysis(
+                issueType = "PERSISTENT_HIGH",
+                severity = severity,
+                primaryParameter = "Daytime Bolus %",
+                adjustmentDirection = "INCREASE",
+                confidence = min(0.8, severity * 1.1),
+                reasoning = "Te veel tijd boven range (${metrics.timeAboveRange.toInt()}%) - verhoog algemene agressiviteit"
+            )
+            else -> PerformanceAnalysis(
+                issueType = "MODERATE_HIGH",
+                severity = severity,
+                primaryParameter = "Mid Rise Bolus %",
+                adjustmentDirection = "INCREASE",
+                confidence = min(0.7, severity),
+                reasoning = "Gemiddelde glucose te hoog (${round(metrics.averageGlucose, 1)} mmol/L) - verhoog mid fase bolus"
+            )
+        }
+    }
+
+    private fun analyzeLowBGIssues(
+        metrics: GlucoseMetrics,
+        mealMetrics: List<MealPerformanceMetrics>
+    ): PerformanceAnalysis {
+        val postMealHypos = mealMetrics.count { it.postMealHypo }
+        val hypoPercentage = if (mealMetrics.isNotEmpty()) (postMealHypos.toDouble() / mealMetrics.size) * 100 else 0.0
+        val virtualHypos = mealMetrics.count { it.rapidDeclineDetected }
+
+        val severity = calculateLowBGSeverity(metrics, hypoPercentage, virtualHypos)
+
+        return when {
+            hypoPercentage > 15 -> PerformanceAnalysis(
+                issueType = "FREQUENT_HYPOS",
+                severity = severity,
+                primaryParameter = "Hypo Risk Reduction %",
+                adjustmentDirection = "INCREASE",
+                confidence = min(0.9, severity * 1.3),
+                reasoning = "Te veel post-maaltijd hypo's (${hypoPercentage.toInt()}%) - verhoog hypo bescherming"
+            )
+            metrics.timeBelowRange > 8 -> PerformanceAnalysis(
+                issueType = "PERSISTENT_LOW",
+                severity = severity,
+                primaryParameter = "Daytime Bolus %",
+                adjustmentDirection = "DECREASE",
+                confidence = min(0.85, severity * 1.1),
+                reasoning = "Te veel tijd onder range (${metrics.timeBelowRange.toInt()}%) - verlaag algemene agressiviteit"
+            )
+            virtualHypos > mealMetrics.size * 0.3 -> PerformanceAnalysis(
+                issueType = "RAPID_DECLINES",
+                severity = severity,
+                primaryParameter = "Peak Damping %",
+                adjustmentDirection = "INCREASE",
+                confidence = min(0.8, severity),
+                reasoning = "Te veel snelle dalingen (${virtualHypos} van ${mealMetrics.size}) - verhoog piek demping"
+            )
+            else -> PerformanceAnalysis(
+                issueType = "MODERATE_LOW",
+                severity = severity,
+                primaryParameter = "Nighttime Bolus %",
+                adjustmentDirection = "DECREASE",
+                confidence = min(0.75, severity),
+                reasoning = "Lage glucose events (${metrics.lowEvents} laag, ${metrics.veryLowEvents} zeer laag) - verlaag nacht agressiviteit"
+            )
+        }
+    }
+
+    private fun analyzeMixedIssues(
+        metrics: GlucoseMetrics,
+        mealMetrics: List<MealPerformanceMetrics>
+    ): PerformanceAnalysis {
+        val severity = (calculateHighBGSeverity(metrics, 0.0) + calculateLowBGSeverity(metrics, 0.0, 0)) / 2.0
+
+        return PerformanceAnalysis(
+            issueType = "MIXED_HIGH_LOW",
+            severity = severity,
+            primaryParameter = "Meal Detection Sensitivity",
+            adjustmentDirection = "INCREASE",
+            confidence = min(0.7, severity),
+            reasoning = "Zowel hoge als lage glucosewaarden - optimaliseer maaltijd detectie timing"
+        )
+    }
+
+    private fun calculateHighBGSeverity(metrics: GlucoseMetrics, highPeakPercentage: Double): Double {
+        var severity = 0.0
+
+        // Time Above Range component
+        severity += min(metrics.timeAboveRange / 50.0, 0.4)
+
+        // Average Glucose component
+        severity += min((metrics.averageGlucose - 7.0) / 5.0, 0.3)
+
+        // High Peaks component
+        severity += min(highPeakPercentage / 100.0, 0.3)
+
+        return severity.coerceIn(0.0, 1.0)
+    }
+
+    private fun calculateLowBGSeverity(metrics: GlucoseMetrics, hypoPercentage: Double, virtualHypos: Int): Double {
+        var severity = 0.0
+
+        // Time Below Range component
+        severity += min(metrics.timeBelowRange / 15.0, 0.4)
+
+        // Hypo Events component
+        severity += min((metrics.lowEvents + metrics.veryLowEvents * 2) / 10.0, 0.3)
+
+        // Post-meal Hypos component
+        severity += min(hypoPercentage / 50.0, 0.2)
+
+        // Virtual Hypos component
+        severity += min(virtualHypos / 10.0, 0.1)
+
+        return severity.coerceIn(0.0, 1.0)
+    }
+
+    // ★★★ BIDIRECTIONEEL ADVIES SYSTEEM ★★★
+    private fun generateBidirectionalAdvice(
+        parameters: FCLParameters,
+        metrics: GlucoseMetrics,
+        mealMetrics: List<MealPerformanceMetrics>
+    ): List<ParameterAgressivenessAdvice> {
+        val adviceList = mutableListOf<ParameterAgressivenessAdvice>()
+
+        // 1. Performance-based advies (nieuw bidirectioneel systeem)
+        val performanceAnalyses = analyzeBidirectionalPerformance(metrics, mealMetrics)
+        adviceList.addAll(generatePerformanceBasedAdvice(parameters, performanceAnalyses))
+
+        // 2. Learning-based advies (bestaand)
+        adviceList.addAll(generateLearningBasedAdvice(parameters))
+
+        // 3. Meal-specifiek advies (bestaand)
+        adviceList.addAll(generateMealBasedAdvice(parameters))
+
+        return adviceList
+            .take(5)
+            .distinctBy { it.parameterName }
+            .sortedByDescending { it.confidence }
+    }
+
+    // ★★★ PRESTATIE-GEBASEERD ADVIES ★★★
+    private fun generatePerformanceBasedAdvice(
+        parameters: FCLParameters,
+        analyses: List<PerformanceAnalysis>
+    ): List<ParameterAgressivenessAdvice> {
+        if (analyses.isEmpty()) return emptyList()
+
+        return analyses.mapNotNull { analysis ->
+            when (analysis.issueType) {
+                "HIGH_PEAKS", "PERSISTENT_HIGH", "MODERATE_HIGH" ->
+                    createBidirectionalParameterAdvice(parameters, analysis)
+                "FREQUENT_HYPOS", "PERSISTENT_LOW", "RAPID_DECLINES", "MODERATE_LOW" ->
+                    createBidirectionalParameterAdvice(parameters, analysis)
+                "MIXED_HIGH_LOW" ->
+                    createMixedIssueAdvice(parameters, analysis)
+                else -> null
+            }
+        }
+    }
+
+    private fun createBidirectionalParameterAdvice(
+        parameters: FCLParameters,
+        analysis: PerformanceAnalysis
+    ): ParameterAgressivenessAdvice {
+        val currentValue = getCurrentParameterValue(parameters, analysis.primaryParameter)
+        val definition = getParameterDefinition(parameters, analysis.primaryParameter)
+
+        val minValue = definition?.minValue ?: getDefaultMinValue(analysis.primaryParameter)
+        val maxValue = definition?.maxValue ?: getDefaultMaxValue(analysis.primaryParameter)
+
+        val recommendedValue = when (analysis.adjustmentDirection) {
+            "INCREASE" -> calculateOptimalIncrease(currentValue, maxValue)
+            "DECREASE" -> calculateOptimalDecrease(currentValue, minValue)
+            else -> currentValue
+        }
+
+        // ★★★ DYNAMISCHE VERWACHTE VERBETERING ★★★
+        val expectedImprovement = when (analysis.adjustmentDirection) {
+            "INCREASE" -> calculateExpectedImprovement(analysis, "increase")
+            "DECREASE" -> calculateExpectedImprovement(analysis, "decrease")
+            else -> "Geen verandering"
+        }
+
+        return ParameterAgressivenessAdvice(
+            parameterName = analysis.primaryParameter,
+            currentValue = currentValue,
+            recommendedValue = recommendedValue,
+            reason = analysis.reasoning,
+            confidence = analysis.confidence,
+            expectedImprovement = expectedImprovement,
+            changeDirection = analysis.adjustmentDirection
+        )
+    }
+
+    private fun createMixedIssueAdvice(
+        parameters: FCLParameters,
+        analysis: PerformanceAnalysis
+    ): ParameterAgressivenessAdvice {
+        val currentValue = getCurrentParameterValue(parameters, analysis.primaryParameter)
+        val definition = getParameterDefinition(parameters, analysis.primaryParameter)
+
+        val minValue = definition?.minValue ?: getDefaultMinValue(analysis.primaryParameter)
+        val maxValue = definition?.maxValue ?: getDefaultMaxValue(analysis.primaryParameter)
+
+        // Voor gemengde problemen: kleinere, conservatieve aanpassing
+        val conservativeChange = (calculateOptimalIncrease(currentValue, maxValue) - currentValue) * 0.3
+        val recommendedValue = currentValue + conservativeChange
+
+        return ParameterAgressivenessAdvice(
+            parameterName = analysis.primaryParameter,
+            currentValue = currentValue,
+            recommendedValue = recommendedValue,
+            reason = analysis.reasoning,
+            confidence = analysis.confidence * 0.8, // Lager vertrouwen bij gemengde problemen
+            expectedImprovement = "Betere timing van maaltijd detectie voor stabielere glucose",
+            changeDirection = "INCREASE"
+        )
+    }
+
+    private fun calculateExpectedImprovement(analysis: PerformanceAnalysis, direction: String): String {
+        val severity = analysis.severity
+
+        return when (analysis.issueType) {
+            "HIGH_PEAKS" -> "Verwacht ${(severity * 30).toInt()}% minder hoge pieken"
+            "PERSISTENT_HIGH" -> "Verwacht ${(severity * 25).toInt()}% minder tijd boven range"
+            "FREQUENT_HYPOS" -> "Verwacht ${(severity * 40).toInt()}% minder hypo's"
+            "PERSISTENT_LOW" -> "Verwacht ${(severity * 35).toInt()}% minder tijd onder range"
+            "RAPID_DECLINES" -> "Verwacht ${(severity * 20).toInt()}% minder snelle dalingen"
+            "MIXED_HIGH_LOW" -> "Verwacht betere balans tussen hoge en lage glucose"
+            else -> "Verwacht algemene verbetering"
+        }
+    }
+
     private fun getFallbackParameterValue(parameters: FCLParameters, parameterName: String): Double {
         return try {
             when (parameterName) {
@@ -444,7 +734,7 @@ class FCLMetrics(private val context: Context, private val preferences: Preferen
         }
     }
 
-    // ★★★ GEMODULEERDE ADVIES GENERATIE ★★★
+/*    // ★★★ GEMODULEERDE ADVIES GENERATIE ★★★
     private fun generateModulatedAdvice(
         parameters: FCLParameters,
         metrics: GlucoseMetrics,
@@ -464,6 +754,15 @@ class FCLMetrics(private val context: Context, private val preferences: Preferen
         return rawAdvice.map { advice ->
             modulateAdviceWithHistory(advice, history, mealMetrics)
         }.sortedByDescending { it.confidence }
+    }   */
+
+    private fun generateModulatedAdvice(
+        parameters: FCLParameters,
+        metrics: GlucoseMetrics,
+        mealMetrics: List<MealPerformanceMetrics>
+    ): List<ParameterAgressivenessAdvice> {
+        // ★★★ GEBRUIK BIDIRECTIONEEL ADVIES SYSTEEM ★★★
+        return generateBidirectionalAdvice(parameters, metrics, mealMetrics)
     }
 
     private fun modulateAdviceWithHistory(

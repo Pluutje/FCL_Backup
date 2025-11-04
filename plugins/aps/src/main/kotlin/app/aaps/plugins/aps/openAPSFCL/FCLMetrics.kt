@@ -1682,7 +1682,7 @@ class FCLMetrics(private val context: Context, private val preferences: Preferen
         )
     }
 
-    private fun calculateTimeInRange(data: List<CSVReading>): Double {
+/*    private fun calculateTimeInRange(data: List<CSVReading>): Double {
         if (data.isEmpty()) return 0.0
         val inRange = data.count { it.currentBG in TARGET_LOW..TARGET_HIGH }
         return (inRange.toDouble() / data.size) * 100.0
@@ -1704,6 +1704,111 @@ class FCLMetrics(private val context: Context, private val preferences: Preferen
         if (data.isEmpty()) return 0.0
         val belowTarget = data.count { it.currentBG < Target_Bg }
         return (belowTarget.toDouble() / data.size) * 100.0
+    }   */
+
+    // ★★★ CORRECTE TIJD-BASED METRICS BEREKENING ★★★
+    private fun calculateTimeInRange(data: List<CSVReading>): Double {
+        if (data.size < 2) return 0.0
+
+        var totalTimeInRange = 0.0
+        val sortedData = data.sortedBy { it.timestamp }
+
+        for (i in 0 until sortedData.size - 1) {
+            val current = sortedData[i]
+            val next = sortedData[i + 1]
+
+            // Bereken tijd tussen metingen in minuten
+            val minutesBetween = Minutes.minutesBetween(current.timestamp, next.timestamp).minutes
+            val hoursBetween = minutesBetween / 60.0
+
+            // Bepaal of deze periode in range is (gebruik gemiddelde van beide metingen)
+            val avgBG = (current.currentBG + next.currentBG) / 2.0
+
+            if (avgBG in TARGET_LOW..TARGET_HIGH) {
+                totalTimeInRange += hoursBetween
+            }
+        }
+
+        val totalPeriodHours = calculateTotalPeriodHours(sortedData)
+        return if (totalPeriodHours > 0) (totalTimeInRange / totalPeriodHours) * 100.0 else 0.0
+    }
+
+    private fun calculateTimeBelowRange(data: List<CSVReading>): Double {
+        if (data.size < 2) return 0.0
+
+        var totalTimeBelow = 0.0
+        val sortedData = data.sortedBy { it.timestamp }
+
+        for (i in 0 until sortedData.size - 1) {
+            val current = sortedData[i]
+            val next = sortedData[i + 1]
+
+            val minutesBetween = Minutes.minutesBetween(current.timestamp, next.timestamp).minutes
+            val hoursBetween = minutesBetween / 60.0
+            val avgBG = (current.currentBG + next.currentBG) / 2.0
+
+            if (avgBG < TARGET_LOW) {
+                totalTimeBelow += hoursBetween
+            }
+        }
+
+        val totalPeriodHours = calculateTotalPeriodHours(sortedData)
+        return if (totalPeriodHours > 0) (totalTimeBelow / totalPeriodHours) * 100.0 else 0.0
+    }
+
+    private fun calculateTimeAboveRange(data: List<CSVReading>): Double {
+        if (data.size < 2) return 0.0
+
+        var totalTimeAbove = 0.0
+        val sortedData = data.sortedBy { it.timestamp }
+
+        for (i in 0 until sortedData.size - 1) {
+            val current = sortedData[i]
+            val next = sortedData[i + 1]
+
+            val minutesBetween = Minutes.minutesBetween(current.timestamp, next.timestamp).minutes
+            val hoursBetween = minutesBetween / 60.0
+            val avgBG = (current.currentBG + next.currentBG) / 2.0
+
+            if (avgBG > TARGET_HIGH) {
+                totalTimeAbove += hoursBetween
+            }
+        }
+
+        val totalPeriodHours = calculateTotalPeriodHours(sortedData)
+        return if (totalPeriodHours > 0) (totalTimeAbove / totalPeriodHours) * 100.0 else 0.0
+    }
+
+    private fun calculateTimeBelowTarget(data: List<CSVReading>): Double {
+        if (data.size < 2) return 0.0
+
+        var totalTimeBelow = 0.0
+        val sortedData = data.sortedBy { it.timestamp }
+
+        for (i in 0 until sortedData.size - 1) {
+            val current = sortedData[i]
+            val next = sortedData[i + 1]
+
+            val minutesBetween = Minutes.minutesBetween(current.timestamp, next.timestamp).minutes
+            val hoursBetween = minutesBetween / 60.0
+            val avgBG = (current.currentBG + next.currentBG) / 2.0
+
+            if (avgBG < Target_Bg) {
+                totalTimeBelow += hoursBetween
+            }
+        }
+
+        val totalPeriodHours = calculateTotalPeriodHours(sortedData)
+        return if (totalPeriodHours > 0) (totalTimeBelow / totalPeriodHours) * 100.0 else 0.0
+    }
+
+    // Helper functie om totale periode in uren te berekenen
+    private fun calculateTotalPeriodHours(sortedData: List<CSVReading>): Double {
+        if (sortedData.size < 2) return 0.0
+        val startTime = sortedData.first().timestamp
+        val endTime = sortedData.last().timestamp
+        val totalMinutes = Minutes.minutesBetween(startTime, endTime).minutes
+        return totalMinutes / 60.0
     }
 
     private fun calculateGMI(averageGlucose: Double): Double {

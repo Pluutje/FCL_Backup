@@ -3600,7 +3600,7 @@ $recentMealsDisplay"""
 
         return """
 ╔═══════════════════
-║  ══ FCL v2.7.0 ══ 
+║  ══ FCL v2.8.0 ══ 
 ╚═══════════════════
 
 🎯 LAATSTE BOLUS BESLISSING

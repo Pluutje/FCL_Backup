@@ -233,9 +233,10 @@ class FCL @Inject constructor(
     private var lastCalculatedBolus: Double = 0.0
     private var lastShouldDeliver: Boolean = false
 
-    // CSV logging
-    private var lastCleanupCheck: DateTime? = null
-    private val CLEANUP_CHECK_INTERVAL = 24 * 60 * 60 * 1000L
+    // ★★★ AUTOMATISCHE UPDATE PROPERTIES ★★★
+    private var lastAutomaticAdjustments: List<ParameterAdjustmentResult> = emptyList()
+    private var lastAutoAdjustTime: DateTime? = null
+    private var autoUpdateEnabled: Boolean = false // ★★★ Begin met uitgeschakeld
 
     // Helpers
     private val resistanceHelper = FCLResistance(preferences, persistenceLayer, context)
@@ -256,6 +257,8 @@ class FCL @Inject constructor(
         set(value) { /* Read-only in FCL */ }
 
     init {
+
+
         resetLearningDataIfNeeded()
         initializeActivitySystem()
         // Robuust laden van learning profile
@@ -2436,6 +2439,8 @@ class FCL @Inject constructor(
                 return advice
             }
 
+
+
             // ★★★ EÉNMALIGE UPDATE ★★★
             updateActivityFromSteps()
             updateResistentieIndienNodig()
@@ -2599,14 +2604,7 @@ class FCL @Inject constructor(
 
             lastMealDetectionDebug = carbsResult.detectionReason
 
-        /*    // ★★★ LOG MAALTIJD DATA VOOR ANALYSE ★★★
-            logMealDataForAnalysis(
-                currentData = currentData,
-                detectedCarbs = detectedCarbs,
-                mealDetected = mealState != MealDetectionState.NONE,
-                dose = 0.0, // Wordt later bijgewerkt met finale dose
-                reason = carbsResult.detectionReason
-            )   */
+
 
             // ★★★ WISKUNDIGE FASE HERKENNING ★★★
             val mathBolusAdvice = getMathematicalBolusAdvice(
@@ -3232,31 +3230,6 @@ class FCL @Inject constructor(
     }
 
 
-
-/*    // ★★★ NIEUWE HELPER FUNCTIES VOOR MAALTIJD ANALYSE ★★★
-    private fun getMealPerformanceSummary(meals: List<MealPerformanceMetrics>): String {
-        if (meals.isEmpty()) return "  Geen maaltijd data beschikbaar"
-
-        val recentMeals = meals.takeLast(5).reversed()
-        val successRate = (meals.count { it.wasSuccessful }.toDouble() / meals.size) * 100
-        val avgPeak = meals.map { it.peakBG }.average()
-        val mealsWithBolus = meals.filter { it.timeToFirstBolus > 0 }
-        val avgResponseTime = if (mealsWithBolus.isNotEmpty()) mealsWithBolus.map { it.timeToFirstBolus }.average() else 0.0
-
-        return """
-        • Totale maaltijden: ${meals.size} (laatste 7 dagen)
-      • Succesrate: ${successRate.toInt()}%
-      • Gem. piek: ${round(avgPeak, 1)} mmol/L
-      • Gem. responstijd: ${avgResponseTime.toInt()} min
-        
-[ RECENTE MAALTIJDEN ]
-${recentMeals.joinToString("\n ") { meal ->
-"${meal.mealStartTime.toString("HH:mm")} | ${meal.mealType.padEnd(9)} | " +
-"Piek: ${round(meal.peakBG, 1)} | Bolus: ${round(meal.totalInsulinDelivered, 2)}U | " +
-"${if (meal.wasSuccessful) "✅" else "❌"} ${meal.timeToFirstBolus}min"}}
- """.trimIndent()
-    }    */
-
     // ★★★ ADVIES PRESENTATIE ★★★
     fun getParameterAdviceForDisplay(): List<ParameterAdviceDisplay> {
         return try {
@@ -3310,25 +3283,6 @@ ${recentMeals.joinToString("\n ") { meal ->
     }
 
 
-    // ★★★ LEARNING STATUS ★★★
-    fun getLearningStatus(): String {
-        val recentMeals = metricsHelper.calculateMealPerformanceMetrics(168)
-        val successRate = if (recentMeals.isNotEmpty()) {
-            recentMeals.count { it.wasSuccessful }.toDouble() / recentMeals.size * 100.0
-        } else {
-            0.0
-        }
-
-        val learningStatus = metricsHelper.getParameterLearningStatus()
-
-        return """
-        Learning Status:
-        • Maaltijd succesrate: ${successRate.toInt()}%
-        • Totale maaltijden geanalyseerd: ${recentMeals.size}
-        • Monitoring periode: 7 dagen
-        $learningStatus
-    """.trimIndent()
-    }
 
     // ★★★ ADVIES GESCHIEDENIS WEERGAVE ★★★
     private fun getAdviceHistorySection(): String {
@@ -3379,6 +3333,85 @@ Geen adviezen in de afgelopen 5 dagen"""
         }
     }
 
+    private fun getParameterAdviceSummary(): List<FCLMetrics.ParameterAdviceSummary> {
+        return try {
+            // ★★★ GEEF FCLPARAMETERS DOOR ★★★
+            metricsHelper.getParameterAdviceSummary(parametersHelper)
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+
+    private fun formatParameterSummary(): String {
+        val summaries = getParameterAdviceSummary()
+        if (summaries.isEmpty()) {
+            return """📊 PARAMETER OVERZICHT
+─────────────────────
+Geen parameter advies beschikbaar"""
+        }
+
+        return buildString {
+            append("📊 PARAMETER OVERZICHT EN ADVIES\n")
+            append("─────────────────────\n")
+
+            summaries.forEach { summary ->
+                val displayName = getParameterDisplayName(summary.parameterName)
+                val currentFormatted = formatParameterValue(summary.parameterName, summary.currentValue)
+                val weightedFormatted = formatParameterValue(summary.parameterName, summary.weightedAverage)
+                val confidencePercent = (summary.confidence * 100).toInt()
+
+                // Trend symbolen
+                val trendSymbol = when (summary.trend) {
+                    "INCREASING" -> "📈"
+                    "DECREASING" -> "📉"
+                    else -> "➡️"
+                }
+
+                // Vertrouwen indicator
+                val confidenceIndicator = when {
+                    summary.confidence > 0.8 -> "🟢"
+                    summary.confidence > 0.6 -> "🟡"
+                    else -> "🔴"
+                }
+
+                // Handmatige aanpassing indicator
+                val manualIndicator = if (summary.manuallyAdjusted) " ✏️" else ""
+
+                append("$trendSymbol $displayName$manualIndicator\n")
+                append("   Huidig: $currentFormatted\n")
+
+                summary.lastAdvice?.let { advice ->
+                    val adviceFormatted = formatParameterValue(summary.parameterName, advice.recommendedValue)
+                    val timeAgo = formatTimeAgo(advice.timestamp)
+                    append("   Laatste advies: $adviceFormatted ($timeAgo)\n")
+                }
+
+                append("   Gemiddeld Advies: $weightedFormatted\n")
+                append("   Vertrouwen: $confidenceIndicator $confidencePercent%\n")
+
+                // Toon reden als beschikbaar
+                summary.lastAdvice?.reason?.take(80)?.let { reason ->
+                    if (reason.isNotBlank()) {
+                        append("   Reden: $reason\n")
+                    }
+                }
+
+                append("\n")
+            }
+        }
+    }
+
+    private fun formatTimeAgo(timestamp: DateTime): String {
+        val minutes = Minutes.minutesBetween(timestamp, DateTime.now()).minutes
+        return when {
+            minutes < 1 -> "zojuist"
+            minutes < 60 -> "$minutes min geleden"
+            minutes < 120 -> "1 uur geleden"
+            minutes < 1440 -> "${minutes / 60} uur geleden"
+            else -> "${minutes / 1440} dagen geleden"
+        }
+    }
+
 
 
     // ★★★ MAALTIJD-GERICHTE STATUS WEERGAVE ★★★
@@ -3414,7 +3447,7 @@ Geen adviezen in de afgelopen 5 dagen"""
         val performanceAnalyses = metricsHelper.analyzeBidirectionalPerformance(metrics24h, recentMeals)
         val topAnalysis = performanceAnalyses.firstOrNull()
         val performanceSection = if (topAnalysis != null) {
-            """🎯 PRESTATIE ANALYSE - BIDIRECTIONEEL
+            """🎯 PRESTATIE ANALYSE
 ─────────────────────
 • Hoofdprobleem: ${when (topAnalysis.issueType) {
                 "HIGH_PEAKS" -> "Te hoge pieken"
@@ -3503,32 +3536,7 @@ Geen adviezen in de afgelopen 5 dagen"""
         // ★★★ LEARNING STATUS ★★★
         val learningStatus = learningEngine.getLearningStatus()
 
-// ★★★ VERBETERDE ADVIES SECTIE - MAALTIJD GERICHT ★★★
-        val adviceList = getParameterAdviceForDisplay()
-        val adviceSection = if (adviceList.isNotEmpty()) {
-            """🎯 MAALTIJD-GERICHT PARAMETER ADVIES 
-─────────────────────
-✅ ${adviceList.size} actieve adviezen beschikbaar:
 
-${adviceList.joinToString("\n\n") { advice ->
-                """📊 ${advice.parameterName}
-   Huidig: ${advice.currentValue} → Aanbevolen: ${advice.recommendedValue}
-   Reden: ${advice.reason}
-   Vertrouwen: ${advice.confidence}% | Verbetering: ${advice.expectedImprovement}"""
-            }}"""
-        } else {
-            if (recentMeals.size < 3) {
-                """🎯 MAALTIJD-GERICHT PARAMETER ADVIES
-─────────────────────
-🟡 Wacht op meer data: ${recentMeals.size}/3 maaltijden geanalyseerd
-   (Minimaal 3 maaltijden nodig voor gedetailleerd advies)"""
-            } else {
-                """🎯 MAALTIJD-GERICHT PARAMETER ADVIES
-─────────────────────
-✅ Geen parameter aanpassingen nodig
-   Huidige instellingen presteren goed bij ${recentMeals.size} geanalyseerde maaltijden"""
-            }
-        }
 
         // ★★★ VERBETERDE MAALTIJD PRESTATIE ANALYSE ★★★
         val mealPerformanceSummary = if (recentMeals.isNotEmpty()) {
@@ -3556,51 +3564,11 @@ $recentMealsDisplay"""
         }
 
 
-        // ★★★ BOUW PARAMETER ADVIES SECTIE ★★★
-        val parameterAdviceSection = buildString {
-            if (agressivenessAdvice.isNotEmpty()) {
-                val newAdviceAvailable = metricsHelper.shouldCalculateNewAdvice()
-
-                append("🕒 Laatste advies: $adviceAge\n")
-                append(if (newAdviceAvailable) "🟢 NIEUW ADVIES BESCHIKBAAR\n" else "🟡 Toon opgeslagen advies\n")
-                append("\n[ AANBEVELINGEN ]\n")
-
-                agressivenessAdvice.forEach { advice ->
-                    val arrow = when (advice.changeDirection) {
-                        "INCREASE" -> "⬆️ VERHOGEN"
-                        "DECREASE" -> "⬇️ VERLAGEN"
-                        else -> "➡️ HANDHAVEN"
-                    }
-                    val currentValueFormatted = formatParameterValue(advice.parameterName, advice.currentValue)
-                    val recommendedValueFormatted = formatParameterValue(advice.parameterName, advice.recommendedValue)
-
-                    append("$arrow ${getParameterDisplayName(advice.parameterName)}:\n")
-                    append("   Huidig: $currentValueFormatted → Aanbevolen: $recommendedValueFormatted\n")
-                    append("   Reden: ${advice.reason}\n")
-                    append("   Vertrouwen: ${(advice.confidence * 100).toInt()}% | ${advice.expectedImprovement}\n\n")
-                }
-            } else {
-                when {
-                    recentMeals.size < 1 -> {
-                        append("🟡 Wacht op eerste maaltijd data\n")
-                        append("   Advies wordt gegenereerd na eerste gedetecteerde maaltijd")
-                    }
-                    recentMeals.size < 3 -> {
-                        append("🟡 Beperkte data: ${recentMeals.size}/3 maaltijden\n")
-                        append("   Basis advies beschikbaar, gedetailleerd advies na meer maaltijden")
-                    }
-                    else -> {
-                        append("✅ Geen parameter aanpassingen aanbevolen\n")
-                        append("   Huidige instellingen presteren goed bij ${recentMeals.size} geanalyseerde maaltijden\n")
-                        append("   Succesratio: ${successRate.toInt()}%")
-                    }
-                }
-            }
-        }
+        val parameterAdviceSection = formatParameterSummary()
 
         return """
 ╔═══════════════════
-║  ══ FCL v2.8.0 ══ 
+║  ══ FCL v3.0.0 ══ 
 ╚═══════════════════
 
 🎯 LAATSTE BOLUS BESLISSING
@@ -3699,7 +3667,6 @@ ${resistanceHelper.getCurrentResistanceLog().split("\n").joinToString("\n  ") { 
 ─────────────────────
 $mealPerformanceSummary
 
-$performanceSection
 
 📊 GLUCOSE METRICS & PERFORMANCE
 ─────────────────────
@@ -3726,33 +3693,27 @@ $performanceSection
 • Time Above Range: ${metrics7d.timeAboveRange.toInt()}%
 • Gemiddelde glucose: ${round(metrics7d.averageGlucose, 1)} mmol/L
 
-$adviceSection
-
-🎯 PARAMETER OPTIMALISATIE ADVIES
-─────────────────────
 ${parameterAdviceSection}
 
- PARAMETER LEARNING SYSTEEM  
-─────────────────────
-${metricsHelper.getParameterLearningStatus()}
-
- PARAMETERS CONFIGURATIE OVERZICHT
-─────────────────────
-$parameterSummary
-
-${getAdviceHistorySection()}
+$performanceSection
         
         
 """.trimIndent()
     }
-//    Backup maaltijden
- //   [⏰ TIMING & CACHING]
- //   • laatste Metrics: $metricsAge geleden
- //   • Volgende metrics: over ${nextMetricsUpdate} minuten
- //   • laatste Advies: $adviceAge
- //   • Volgende advies: over ${nextAdviceUpdate} uur
- //   • Advies interval: $adviceInterval uur
- //   • Maaltijden geanalyseerd: ${recentMeals.size}
+
+ //   🎯 PARAMETER OPTIMALISATIE ADVIES
+ //   ─────────────────────
+
+ //   PARAMETER LEARNING SYSTEEM
+ //   ─────────────────────
+ //   ${metricsHelper.getParameterLearningStatus()}
+
+ //   PARAMETERS CONFIGURATIE OVERZICHT
+ //   ─────────────────────
+
+ //   $parameterSummary
+
+ //   ${getAdviceHistorySection()}
 
     private fun getActivityStatusText(retention: Int): String {
         return when (retention) {
@@ -3763,93 +3724,6 @@ ${getAdviceHistorySection()}
         }
     }
 
-    // ★★★ VERBETERDE MAALTIJD LOGGING VOOR ANALYSE ★★★
-    private fun logMealDataForAnalysis(
-        currentData: BGDataPoint,
-        detectedCarbs: Double,
-        mealDetected: Boolean,
-        dose: Double,
-        reason: String
-    ) {
-        try {
-            loggingHelper.logToAnalysisCSV(
-                timestamp = DateTime.now(),
-                bg = currentData.bg,
-                iob = currentData.iob,
-                detectedCarbs = detectedCarbs,
-                mealDetected = mealDetected,
-                dose = dose,
-                reason = reason,
-                target = getEffectiveTarget(),
-                phase = lastRobustTrends?.phase ?: "unknown"
-            )
-        } catch (e: Exception) {
-            // Negeer logging errors
-        }
-    }
-
-    // ★★★ FORCEER NIEUW ADVIES ★★★
-    fun forceNewParameterAdvice(): String {
-        return try {
-            // Reset caches
-            metricsHelper.resetAllCaches()
-            lastMetricsUpdate = null
-            lastAdviceUpdate = DateTime.now().minusHours(13)
-
-            val metrics24h = metricsHelper.calculateMetrics(24, true)
-            val metrics7d = metricsHelper.calculateMetrics(168, true)
-
-            // Forceer nieuwe advies berekening
-            metricsHelper.calculateAgressivenessAdvice(
-                parametersHelper,
-                metrics24h,
-                true // forceNew
-            )
-
-            "✅ Nieuw parameter advies gegenereerd op basis van recente data\n" +
-                "• Alle caches gereset\n" +
-                "• Metrics opnieuw berekend\n" +
-                "• Vernieuw de status weergave"
-
-        } catch (e: Exception) {
-            "❌ Fout bij genereren nieuw advies: " + (e.message ?: "Onbekende fout")
-        }
-    }
-
-    // ★★★ FORCEER MAALTIJD ANALYSE EN ADVIES UPDATE ★★★
-    fun forceMealAnalysisUpdate(): String {
-        return try {
-            // Reset alle caches in metrics helper
-            metricsHelper.resetAllCaches()
-
-            // Forceer nieuwe metrics berekening
-            val metrics24h = metricsHelper.calculateMetrics(24, true)
-            val metrics7d = metricsHelper.calculateMetrics(168, true)
-
-            // Forceer nieuwe maaltijd analyse
-            val mealMetrics = metricsHelper.calculateMealPerformanceMetrics(168)
-
-            // Forceer nieuw advies
-            lastAdviceUpdate = DateTime.now().minusHours(13)
-            val advice = metricsHelper.calculateAgressivenessAdvice(parametersHelper, metrics24h, true)
-
-            // Reset eigen caches in FCL
-            lastMetricsUpdate = null
-            lastAdviceUpdate = DateTime.now().minusHours(13) // Forceer update
-            lastParameterSummaryUpdate = null
-
-            buildString {
-                append("✅ Maaltijd analyse geforceerd\n")
-                append("• ").append(mealMetrics.size).append(" maaltijden geanalyseerd\n")
-                append("• ").append(advice.size).append(" adviezen gegenereerd\n")
-                append("• Alle caches gereset\n")
-                append("• Vernieuw de status weergave")
-            }
-
-        } catch (e: Exception) {
-            "❌ Fout bij forceren analyse: " + (e.message ?: "Onbekende fout")
-        }
-    }
 
 
     // Helper functie voor rounding
@@ -3858,6 +3732,10 @@ ${getAdviceHistorySection()}
         val scale = Math.pow(10.0, digits.toDouble())
         return Math.round(value * scale) / scale
     }
+
+
+
+
 
     // Enum definitions
     enum class MealDetectionState { NONE, EARLY_RISE, RISING, PEAK, DECLINING, DETECTED }

@@ -328,8 +328,8 @@ class FCL @Inject constructor(
 
 // ★★★ BESLISSINGSLOGICA - VERBETERDE VROEGE DETECTIE ★★★
 // ★★★ NIEUWE DREMPELS VOOR VROEGERE HERKENNING ★★★
-        val earlyRiseThreshold = 0.5  // was impliciet 0.7 via mealDetectionSensitivity * 0.7
-        val moderateRiseThreshold = 1.0 // was 1.5
+        val earlyRiseThreshold = 0.25  // was impliciet 0.7 via mealDetectionSensitivity * 0.7
+        val moderateRiseThreshold = 0.5 // was 1.5
 
         when {
             // Zeer sterke stijging - prioriteit 1 (ONGEWIJZIGD)
@@ -864,8 +864,129 @@ class FCL @Inject constructor(
     }
 
     private fun getCurrentBolusAggressiveness(): Double {
-        return if (isNachtTime()) preferences.get(IntKey.bolus_perc_night).toDouble() else preferences.get(IntKey.bolus_perc_day).toDouble()
+        val baseDay = preferences.get(IntKey.bolus_perc_day).toDouble()
+        val baseNight = preferences.get(IntKey.bolus_perc_night).toDouble()
+
+        return if (isNachtTime()) {
+            getDynamicNightAggressiveness(
+                baseNightAggressiveness = baseNight,
+                baseDayAggressiveness = baseDay,
+                robustTrends = lastRobustTrends,
+                currentBG = currentBg,
+                targetBG = Target_Bg,
+                detectedCarbs = lastDetectedCarbs
+            )
+        } else {
+            baseDay
+        }
     }
+
+    // ★★★ PLAATS DIRECT HIERONDER - NIEUWE FUNCTIE ★★★
+    private fun getDynamicNightAggressiveness(
+        baseNightAggressiveness: Double,
+        baseDayAggressiveness: Double,
+        robustTrends: RobustTrendAnalysis?,
+        currentBG: Double,
+        targetBG: Double,
+        detectedCarbs: Double
+    ): Double {
+        if (!isNachtTime()) return baseDayAggressiveness
+
+        // Basis nacht agressiviteit
+        var dynamicAggressiveness = baseNightAggressiveness
+
+        // ★★★ VERBETERDE SIGNIFICANTIE DETECTIE ★★★
+        val threshold = preferences.get(DoubleKey.dynamic_night_aggressiveness_threshold)
+        val isSignificantRise = when {
+            robustTrends?.firstDerivative ?: 0.0 > threshold -> true
+            currentBG > targetBG + 2.0 && robustTrends?.consistency ?: 0.0 > 0.6 -> true
+            detectedCarbs > 25.0 -> true
+            currentBG > 8.0 && robustTrends?.firstDerivative ?: 0.0 > 1.5 -> true
+            else -> false
+        }
+
+        if (isSignificantRise) {
+            val riseFactor = when {
+                robustTrends?.firstDerivative ?: 0.0 > 4.0 -> 1.0
+                robustTrends?.firstDerivative ?: 0.0 > 3.0 -> 0.8
+                robustTrends?.firstDerivative ?: 0.0 > 2.0 -> 0.6
+                currentBG > 9.0 -> 0.7
+                detectedCarbs > 30.0 -> 0.8
+                else -> 0.5
+            }
+
+            dynamicAggressiveness = baseNightAggressiveness +
+                (baseDayAggressiveness - baseNightAggressiveness) * riseFactor
+
+            if (robustTrends?.firstDerivative ?: 0.0 > 5.0) {
+                dynamicAggressiveness = dynamicAggressiveness.coerceAtLeast(baseDayAggressiveness * 0.8)
+            }
+        }
+
+        return dynamicAggressiveness.coerceIn(baseNightAggressiveness, baseDayAggressiveness)
+    }
+
+    // ★★★ VERBETERDE EARLY BOOST LOGICA ★★★
+    private fun calculateEnhancedEarlyBoost(
+        currentBG: Double,
+        predictedPeak: Double,
+        baseDose: Double,
+        currentIOB: Double,
+        maxIOB: Double,
+        maxBolus: Double,
+        robustTrends: RobustTrendAnalysis?
+    ): Double {
+        if (currentBG !in 8.0..9.9 || predictedPeak <= 10.0) return baseDose
+
+        val delta = (predictedPeak - currentBG).coerceAtLeast(0.0)
+
+        // ★★★ VERHOOGDE BOOST FACTOR ★★★
+        val baseBoostFactor = (getCurrentBolusAggressiveness() / 100.0) *
+            (1.0 + (delta / 8.0).coerceIn(0.0, preferences.get(IntKey.enhanced_early_boost_perc).toDouble()/100.0))
+
+        val consistencyBoost = when (robustTrends?.consistency ?: 0.0) {
+            in 0.8..1.0 -> 1.2
+            in 0.6..0.8 -> 1.1
+            else -> 1.0
+        }
+
+        val totalBoostFactor = baseBoostFactor * consistencyBoost
+        val proposed = (baseDose * totalBoostFactor).coerceAtMost(maxBolus)
+
+        // Dynamische IOB cap
+        val overTarget = (predictedPeak - 10.0).coerceAtLeast(0.0)
+        val iobBoostPercent = (overTarget / 4.0).coerceIn(0.0, 0.6)
+        val dynamicIOBcap = maxIOB * (1.0 + iobBoostPercent)
+
+        return if (currentIOB + proposed <= dynamicIOBcap) {
+            proposed
+        } else {
+            val allowed = (dynamicIOBcap - currentIOB).coerceAtLeast(0.0)
+            allowed.coerceAtMost(maxBolus)
+        }
+    }
+
+    // ★★★ VERBETERDE BOLUS FREQUENTIE EN AGRESSIVITEIT ★★★
+    private fun shouldAllowMoreFrequentBolus(
+        currentIOB: Double,
+        maxIOB: Double,
+        robustTrends: RobustTrendAnalysis?,
+        currentBG: Double,
+        targetBG: Double
+    ): Boolean {
+        // ★★★ DYNAMISCHE IOB CAP BIJ STERKE STIJGING ★★★
+        val dynamicMaxIOB = calculateDynamicIOBCap(currentIOB, maxIOB, robustTrends?.firstDerivative ?: 0.0)
+        val iobRatio = currentIOB / dynamicMaxIOB
+
+        // ★★★ MINDER RESTRICTIEF BIJ STIJGENDE GLUCOSE ★★★
+        return when {
+            robustTrends?.firstDerivative ?: 0.0 > 4.0 -> iobRatio < 0.9  // Meer tolerantie bij extreme stijging
+            robustTrends?.firstDerivative ?: 0.0 > 2.5 -> iobRatio < 0.8  // Standaard tolerantie bij sterke stijging
+            currentBG > targetBG + 3.0 -> iobRatio < 0.7                  // Meer tolerantie bij hoge BG
+            else -> iobRatio < 0.6                                        // Standaard safety
+        }
+    }
+
 
     private fun gethypoThreshold(): Double {
         return if (isNachtTime()) HYPO_THRESHOLD_NIGHT else HYPO_THRESHOLD_DAY
@@ -1422,18 +1543,21 @@ class FCL @Inject constructor(
         // ★★★ DYNAMISCHE IOB CAP TOEPASSEN ★★★
         val dynamicMaxIOB = calculateDynamicIOBCap(currentIOB, maxIOB, robustTrends.firstDerivative)
 
+        // ★★★ OPTIMALE IOB LIMIETEN VOOR 120% CORRECTIE ★★★
         if (mealDetected) {
             return when {
-                currentIOB > dynamicMaxIOB * 1.05 -> true
-                currentIOB > dynamicMaxIOB * 0.90 && robustTrends.firstDerivative < 1.5 -> true
-                currentIOB > dynamicMaxIOB * 0.80 && robustTrends.firstDerivative < 0.5 -> true
+                currentIOB > dynamicMaxIOB * 1.15 -> true
+                currentIOB > dynamicMaxIOB * 0.95 && robustTrends.firstDerivative < 1.0 -> true
+                currentIOB > dynamicMaxIOB * 0.85 && robustTrends.firstDerivative < 0.5 -> true
+                currentIOB > dynamicMaxIOB * 0.70 && robustTrends.firstDerivative < 0.2 -> true
                 else -> false
             }
         } else {
             return when {
-                currentIOB > dynamicMaxIOB * 1.05 -> true
-                currentIOB > dynamicMaxIOB * 0.90 && robustTrends.firstDerivative < 2.0 -> true
-                currentIOB > dynamicMaxIOB * 0.80 && robustTrends.firstDerivative < 1.0 -> true
+                currentIOB > dynamicMaxIOB * 1.15 -> true
+                currentIOB > dynamicMaxIOB * 0.95 && robustTrends.firstDerivative < 2.0 -> true
+                currentIOB > dynamicMaxIOB * 0.85 && robustTrends.firstDerivative < 1.0 -> true
+                currentIOB > dynamicMaxIOB * 0.70 && robustTrends.firstDerivative < 0.5 -> true
                 else -> false
             }
         }
@@ -2489,12 +2613,15 @@ class FCL @Inject constructor(
             var predictedPeak = basicAdvice.predictedValue ?: currentData.bg
             var finalCOB = cobNow
 
-            // ★★★ PERSISTENT HIGH BG CHECK ★★★
+            // ★★★ PERSISTENT CHECK MET EFFECTIEVE ISF EN TREND ★★★
             val persistentResult = persistentHelper.checkPersistentHighBG(
                 historicalData,
                 currentIOB,
                 maxIOB,
-                ::isNachtTime
+                ::isNachtTime,
+                effectiveISF = effectiveISF, // ★★★ DYNAMISCHE ISF ★★★
+                currentTrend = trends.recentTrend,
+                robustTrends = lastRobustTrends
             )
 
             val hasPersistentBolus = persistentResult.shouldDeliver && persistentResult.extraBolus > 0.05
@@ -2637,8 +2764,27 @@ class FCL @Inject constructor(
             if (robustTrends.consistency > preferences.get(DoubleKey.phase_min_consistency) &&
                 mathBolusAdvice.immediatePercentage > 0 && detectedCarbs > 0) {
 
+                // ★★★ VERHOOG DE AGGRESSIVITEIT BIJ LAGE START-BG ★★★
+                val bgBoostFactor = when {
+                    currentData.bg < 5.5 -> 1.3  // 30% boost bij zeer lage start-BG (voorkom late piek)
+                    currentData.bg < 6.0 -> 1.2  // 20% boost bij lage start-BG
+                    currentData.bg < 7.0 -> 1.1  // 10% boost bij matige start-BG
+                    else -> 1.0
+                }
+
+                // ★★★ SAFETY: GEEN boost als IOB al hoog is ★★★
+                val safeBoostFactor = if (currentIOB > maxIOB * 0.4) {
+                    1.0 // Geen boost bij hoge IOB
+                } else {
+                    bgBoostFactor
+                }
+
                 val effectiveCR = getEffectiveCarbRatio()
-                val totalCarbBolus = detectedCarbs / effectiveCR
+                val totalCarbBolus = detectedCarbs / effectiveCR * safeBoostFactor
+
+                if (safeBoostFactor > 1.0) {
+                    lastMathBolusAdvice += " | BG-Boost(x${"%.1f".format(safeBoostFactor)})"
+                }
                 val mealType = getMealTypeFromHour()
                 val currentHour = DateTime.now().hourOfDay
                 val hypoAdjustedFactor = getHypoAdjustedMealFactor(mealType, currentHour)
@@ -2852,6 +2998,43 @@ class FCL @Inject constructor(
                 }
             }
 
+            // ★★★ VERBETERDE BOLUS FREQUENTIE CHECK ★★★
+            val canDeliverMoreFrequently = shouldAllowMoreFrequentBolus(
+                currentIOB = currentIOB,
+                maxIOB = maxIOB,
+                robustTrends = robustTrends,
+                currentBG = currentData.bg,
+                targetBG = effectiveTarget
+            )
+
+            if (!canDeliverMoreFrequently && finalDeliver && finalDose > 0) {
+                // ★★★ CRITICAL FIX: Blokkeer alleen bij DAALENDE trend, niet bij STIJGENDE ★★★
+                if (robustTrends.firstDerivative < 1.0) {
+                    finalDose = 0.0
+                    finalDeliver = false
+                    finalReason += " | Limited by IOB safety (${"%.1f".format(currentIOB)}/${maxIOB}U)"
+                } else {
+                    // ★★★ BIJ STIJGING: Verminder dosis i.p.v. blokkeren ★★★
+                    val reductionFactor = when {
+                        currentIOB > maxIOB * 0.8 -> 0.5
+                        currentIOB > maxIOB * 0.6 -> 0.7
+                        currentIOB > maxIOB * 0.4 -> 0.85
+                        else -> 1.0
+                    }
+                    val originalDose = finalDose
+                    finalDose *= reductionFactor
+                    finalReason += " | IOB reduced ${"%.2f".format(originalDose)}→${"%.2f".format(finalDose)}U (${(reductionFactor * 100).toInt()}%)"
+
+                    // ★★★ HYPO SAFETY: Extra reductie als BG al aan het dalen is ★★★
+                    if (trends.recentTrend < 0 && finalDose > 0.5) {
+                        finalDose *= 0.7
+                        finalReason += " + trend reduction"
+                    }
+                }
+            }
+
+
+
             // ★★★ RESERVED BOLUS RELEASE LOGIC ★★★
             decayReservedBolusOverTime()
 
@@ -2862,7 +3045,9 @@ class FCL @Inject constructor(
                     Minutes.minutesBetween(it, DateTime.now()).minutes
                 } ?: Int.MAX_VALUE
 
-                if (minutesSinceLastBolus >= 10) {
+                val minMinutesBetweenBolus = preferences.get(IntKey.min_minutes_between_bolus)
+
+                if (minutesSinceLastBolus >= minMinutesBetweenBolus) {
                     val releasedBolus = calculateReservedBolusRelease(
                         currentData.bg,
                         effectiveTarget,
@@ -2889,6 +3074,27 @@ class FCL @Inject constructor(
                         finalDeliver = true
                         lastBolusTime = DateTime.now()
                     }
+                }
+            }
+
+            // ★★★ IOB VERIFICATION SYSTEM - Voorkom missed bolus ★★★
+            if (finalDeliver && finalDose > 0.1) {
+                val shouldActuallyDeliver = verifyBolusDelivery(
+                    expectedBolus = finalDose,
+                    currentIOB = currentIOB,
+                    lastBolusTime = lastBolusTime,
+                    currentSlope = robustTrends.firstDerivative,
+                    lastCalculatedBolus = lastCalculatedBolus
+                )
+
+                if (!shouldActuallyDeliver && robustTrends.firstDerivative < 3.0) {
+                    // Alleen blokkeren bij niet-extreme stijging
+                    finalDeliver = false
+                    finalReason += " | IOB VERIFICATION: Possible missed bolus detection"
+                } else if (!shouldActuallyDeliver && robustTrends.firstDerivative >= 3.0) {
+                    // Bij extreme stijging: verminder dosis maar geef wel af
+                    finalDose *= 0.7
+                    finalReason += " | IOB VERIFICATION: Reduced due to possible missed bolus"
                 }
             }
 
@@ -2976,29 +3182,19 @@ class FCL @Inject constructor(
             predictedPeak = basicAdvice.predictedValue ?: (currentData.bg + 2.0)
 
             if (currentData.bg in 8.0..9.9 && predictedPeak > 10.0) {
-                val delta = (predictedPeak - currentData.bg).coerceAtLeast(0.0)
-                val boostFactor = (getCurrentBolusAggressiveness()/100.0) * (1.0 + (delta / 10.0).coerceIn(0.0, 0.3))
+                val doseBeforeBoost = finalDose // Bewaar de dosis voor vergelijking
+                finalDose = calculateEnhancedEarlyBoost(
+                    currentBG = currentData.bg,
+                    predictedPeak = predictedPeak,
+                    baseDose = finalDose,
+                    currentIOB = currentIOB,
+                    maxIOB = maxIOB,
+                    maxBolus = maxBolus,
+                    robustTrends = robustTrends
+                )
 
-                val proposed = (finalDose * boostFactor).coerceAtMost(maxBolus)
-                val overTarget = (predictedPeak - 10.0).coerceAtLeast(0.0)
-                val iobBoostPercent = (overTarget / 5.0).coerceIn(0.0, 0.5)
-                val dynamicIOBcap = maxIOB * (1.0 + iobBoostPercent)
-
-                if (currentIOB >= maxIOB * 0.9 && trends.recentTrend <= 0.0) {
-                    finalReason += " | EarlyBoost blocked by high IOB safety"
-                } else {
-                    if (currentIOB + proposed <= dynamicIOBcap) {
-                        finalDose = proposed
-                        if (finalMealDetected) {
-                            finalReason += " | EarlyMealBoost(x${"%.2f".format(boostFactor)}) peak=${"%.1f".format(predictedPeak)}"
-                        } else {
-                            finalReason += " | EarlyCorrectionBoost(x${"%.2f".format(boostFactor)}) peak=${"%.1f".format(predictedPeak)}"
-                        }
-                    } else {
-                        val allowed = (dynamicIOBcap - currentIOB).coerceAtLeast(0.0)
-                        finalDose = allowed.coerceAtMost(maxBolus)
-                        finalReason += " | EarlyBoost capped by dynamic IOB cap"
-                    }
+                if (finalDose > doseBeforeBoost) {
+                    finalReason += " | EnhancedEarlyBoost(peak=${"%.1f".format(predictedPeak)})"
                 }
             }
 
@@ -3230,26 +3426,6 @@ class FCL @Inject constructor(
     }
 
 
-    // ★★★ ADVIES PRESENTATIE ★★★
-    fun getParameterAdviceForDisplay(): List<ParameterAdviceDisplay> {
-        return try {
-            val currentAdvice = metricsHelper.getCurrentAdvice()
-            currentAdvice.map { advice ->
-                ParameterAdviceDisplay(
-                    parameterName = getParameterDisplayName(advice.parameterName),
-                    currentValue = formatParameterValue(advice.parameterName, advice.currentValue),
-                    recommendedValue = formatParameterValue(advice.parameterName, advice.recommendedValue),
-                    reason = advice.reason,
-                    confidence = (advice.confidence * 100).toInt(),
-                    expectedImprovement = advice.expectedImprovement,
-                    changeDirection = advice.changeDirection
-                )
-            }
-        } catch (e: Exception) {
-            emptyList()
-        }
-    }
-
 
 
     // ★★★ PARAMETER DISPLAY HELPER FUNCTIES ★★★
@@ -3284,132 +3460,107 @@ class FCL @Inject constructor(
 
 
 
-    // ★★★ ADVIES GESCHIEDENIS WEERGAVE ★★★
-    private fun getAdviceHistorySection(): String {
-        val history = metricsHelper.getAdviceHistoryEntries(5) // Laatste 5 dagen
-
-        if (history.isEmpty()) {
-            return """📜 ADVIES GESCHIEDENIS
-─────────────────────
-Geen adviezen in de afgelopen 5 dagen"""
-        }
-
-        return buildString {
-            append("📜 ADVIES GESCHIEDENIS (laatste 5 dagen)\n")
-            append("─────────────────────\n")
-
-            history.take(10).forEachIndexed { index, entry ->
-                val timeAgo = when {
-                    Minutes.minutesBetween(entry.timestamp, DateTime.now()).minutes < 60 ->
-                        "${Minutes.minutesBetween(entry.timestamp, DateTime.now()).minutes} min geleden"
-                    Hours.hoursBetween(entry.timestamp, DateTime.now()).hours < 24 ->
-                        "${Hours.hoursBetween(entry.timestamp, DateTime.now()).hours} uur geleden"
-                    else ->
-                        "${Days.daysBetween(entry.timestamp, DateTime.now()).days} dagen geleden"
-                }
-
-                append("${index + 1}. [${entry.timestamp.toString("dd-MM HH:mm")}] - $timeAgo\n")
-                append("   Maaltijden: ${entry.mealCount} | TIR: ${entry.metricsSnapshot?.timeInRange?.toInt() ?: 0}%\n")
-
-                entry.adviceList.take(3).forEach { advice ->
-                    val arrow = when (advice.changeDirection) {
-                        "INCREASE" -> "⬆️"
-                        "DECREASE" -> "⬇️"
-                        else -> "➡️"
-                    }
-                    append("   $arrow ${advice.parameterName}: ${advice.currentValue} → ${advice.recommendedValue}\n")
-                    append("      Reden: ${advice.reason.take(60)}${if (advice.reason.length > 60) "..." else ""}\n")
-                }
-
-                if (entry.adviceList.size > 3) {
-                    append("   ... +${entry.adviceList.size - 3} meer adviezen\n")
-                }
-                append("\n")
-            }
-
-            if (history.size > 10) {
-                append("... en ${history.size - 10} eerdere adviezen\n")
-            }
-        }
-    }
-
     private fun getParameterAdviceSummary(): List<FCLMetrics.ParameterAdviceSummary> {
         return try {
             // ★★★ GEEF FCLPARAMETERS DOOR ★★★
-            metricsHelper.getParameterAdviceSummary(parametersHelper)
+            metricsHelper.getParameterAdviceSummary()
         } catch (e: Exception) {
             emptyList()
         }
     }
 
+
+
+    // ★★★ VERBETERDE PARAMETER OVERZICHT ★★★
     private fun formatParameterSummary(): String {
-        val summaries = getParameterAdviceSummary()
-        if (summaries.isEmpty()) {
+      val summaries = getParameterAdviceSummary()
+      //   val summaries = getCachedParameterSummary()
+        val validSummaries = summaries.filter { it.confidence > 0.3 }
+
+        if (validSummaries.isEmpty()) {
             return """📊 PARAMETER OVERZICHT
 ─────────────────────
-Geen parameter advies beschikbaar"""
+Geen parameter adviezen beschikbaar
+• Adviezen worden alleen getoond bij voldoende vertrouwen (>30%)
+• Wacht op volgende maaltijd voor advies"""
         }
 
         return buildString {
             append("📊 PARAMETER OVERZICHT EN ADVIES\n")
             append("─────────────────────\n")
+            append("volgend advies over ${getNextAdviceUpdateHours()}h\n\n")
 
-            summaries.forEach { summary ->
+            validSummaries.forEach { summary ->
                 val displayName = getParameterDisplayName(summary.parameterName)
                 val currentFormatted = formatParameterValue(summary.parameterName, summary.currentValue)
                 val weightedFormatted = formatParameterValue(summary.parameterName, summary.weightedAverage)
                 val confidencePercent = (summary.confidence * 100).toInt()
 
-                // Trend symbolen
-                val trendSymbol = when (summary.trend) {
-                    "INCREASING" -> "📈"
-                    "DECREASING" -> "📉"
-                    else -> "➡️"
-                }
-
-                // Vertrouwen indicator
-                val confidenceIndicator = when {
-                    summary.confidence > 0.8 -> "🟢"
-                    summary.confidence > 0.6 -> "🟡"
-                    else -> "🔴"
-                }
-
-                // Handmatige aanpassing indicator
-                val manualIndicator = if (summary.manuallyAdjusted) " ✏️" else ""
-
-                append("$trendSymbol $displayName$manualIndicator\n")
+                append("${getTrendSymbol(summary.trend)} $displayName\n")
                 append("   Huidig: $currentFormatted\n")
+                append("   Gewogen advies: $weightedFormatted\n")
 
                 summary.lastAdvice?.let { advice ->
                     val adviceFormatted = formatParameterValue(summary.parameterName, advice.recommendedValue)
                     val timeAgo = formatTimeAgo(advice.timestamp)
-                    append("   Laatste advies: $adviceFormatted ($timeAgo)\n")
-                }
+                    append("   Laatste berekening: $adviceFormatted ($timeAgo)\n")
+                    append("   Richting: ${getDirectionText(advice.changeDirection)}\n")
+                    append("   Vertrouwen: ${getConfidenceIndicator(summary.confidence)} $confidencePercent%\n")
 
-                append("   Gemiddeld Advies: $weightedFormatted\n")
-                append("   Vertrouwen: $confidenceIndicator $confidencePercent%\n")
-
-                // Toon reden als beschikbaar
-                summary.lastAdvice?.reason?.take(80)?.let { reason ->
-                    if (reason.isNotBlank()) {
-                        append("   Reden: $reason\n")
+                    if (advice.reason.isNotBlank()) {
+                        append("   Reden: ${advice.reason}\n")
                     }
                 }
 
+                if (summary.manuallyAdjusted) {
+                    append("   ⚠️ Handmatig aangepast\n")
+                }
                 append("\n")
             }
         }
     }
 
-    private fun formatTimeAgo(timestamp: DateTime): String {
-        val minutes = Minutes.minutesBetween(timestamp, DateTime.now()).minutes
-        return when {
-            minutes < 1 -> "zojuist"
-            minutes < 60 -> "$minutes min geleden"
-            minutes < 120 -> "1 uur geleden"
-            minutes < 1440 -> "${minutes / 60} uur geleden"
-            else -> "${minutes / 1440} dagen geleden"
+    private fun getDirectionText(direction: String): String {
+        return when (direction) {
+            "INCREASE" -> "Verhogen"
+            "DECREASE" -> "Verlagen"
+            else -> "Onveranderd"
         }
+    }
+
+
+    // ★★★ VOEG DEZE FUNCTIE TOE ★★★
+    private fun getNextAdviceUpdateHours(): Int {
+        val adviceInterval = try {
+            preferences.get(IntKey.Advice_Interval_Hours)
+        } catch (e: Exception) {
+            12
+        }
+
+        return adviceInterval - (lastAdviceUpdate?.let {
+            Hours.hoursBetween(it, DateTime.now()).hours
+        } ?: adviceInterval)
+    }
+
+    private fun getTrendSymbol(trend: String): String {
+        return when (trend) {
+            "INCREASING" -> "📈"
+            "DECREASING" -> "📉"
+            else -> "➡️"
+        }
+    }
+
+    private fun getConfidenceIndicator(confidence: Double): String {
+        return when {
+            confidence > 0.8 -> "🟢"
+            confidence > 0.6 -> "🟡"
+            else -> "🔴"
+        }
+    }
+
+    private fun formatTimeAgo(timestamp: DateTime): String {
+        // ★★★ DATUM-TIJD FORMAAT i.p.v. "zojuist" ★★★
+        return timestamp.toString("dd-MM HH:mm")
     }
 
 
@@ -3443,40 +3594,84 @@ Geen parameter advies beschikbaar"""
             0.0
         }
 
-        // ★★★ BIDIRECTIONELE PRESTATIE ANALYSE ★★★
-        val performanceAnalyses = metricsHelper.analyzeBidirectionalPerformance(metrics24h, recentMeals)
-        val topAnalysis = performanceAnalyses.firstOrNull()
-        val performanceSection = if (topAnalysis != null) {
-            """🎯 PRESTATIE ANALYSE
-─────────────────────
-• Hoofdprobleem: ${when (topAnalysis.issueType) {
-                "HIGH_PEAKS" -> "Te hoge pieken"
-                "PERSISTENT_HIGH" -> "Aanhoudend hoge glucose"
-                "FREQUENT_HYPOS" -> "Te veel hypo's"
-                "PERSISTENT_LOW" -> "Aanhoudend lage glucose"
-                "RAPID_DECLINES" -> "Snelle dalingen"
-                "MIXED_HIGH_LOW" -> "Gemengde problemen"
-                else -> "Optimaal"
-            }}
-• Ernst: ${(topAnalysis.severity * 100).toInt()}%
-• Aanbevolen actie: ${topAnalysis.adjustmentDirection} ${topAnalysis.primaryParameter}
-• Reden: ${topAnalysis.reasoning}"""
-        } else {
-            """🎯 PRESTATIE ANALYSE - BIDIRECTIONEEL
-─────────────────────
-✅ Geen significante problemen gedetecteerd
-   Glucosewaarden binnen acceptabele marges"""
-        }
 
-        // ★★★ CONDITIONEEL ADVIES BEREKENING ★★★
-        val agressivenessAdvice = if (shouldUpdateAdvice()) {
+
+        // ★★★ VERBETERDE CONDITIONELE ADVIES BEREKENING ★★★
+        val nextAdviceUpdateCalc = getNextAdviceUpdateHours()
+        val (consolidatedAdvice, adviceAge, nextAdviceUpdate) = if (shouldUpdateAdvice()) {
             lastAdviceUpdate = DateTime.now()
-            metricsHelper.calculateAgressivenessAdvice(parametersHelper, metrics24h, forceNew = true)
+            val newAdvice = metricsHelper.getConsolidatedAdvice(parametersHelper, metrics24h, metrics7d, recentMeals)
+            Triple(newAdvice, "net", nextAdviceUpdateCalc)
         } else {
-            metricsHelper.getCurrentAdvice()
+            val cachedAdvice = metricsHelper.getCurrentConsolidatedAdvice()
+            val age = lastAdviceUpdate?.let {
+                val hours = Hours.hoursBetween(it, DateTime.now()).hours
+                when {
+                    hours < 1 -> "minder dan 1 uur"
+                    hours == 1 -> "1 uur"
+                    else -> "$hours uur"
+                }
+            } ?: "onbekend"
+            Triple(cachedAdvice, age, nextAdviceUpdateCalc)
         }
 
-        // ★★★ TIMING INFO ★★★
+
+// ★★★ EENDUIDIG ADVIES ★★★
+        // ★★★ EENDUIDIG ADVIES ★★★
+        val adviceSection = buildString {
+            append("🎯 FCL ADVIES OVERZICHT\n")
+            append("─────────────────────\n")
+
+            // ★★★ ADVIES STATUS ★★★
+            val adviceStatus = if (metricsHelper.isAdviceAvailable()) {
+                "🟢 Advies beschikbaar"
+            } else {
+                "🟡 Wacht op eerste analyse"
+            }
+            append("• Status: $adviceStatus\n")
+
+            // Toon advies status
+            val isHistoricalAdvice = consolidatedAdvice.reasoning.contains("vorig advies") ||
+                consolidatedAdvice.parameterAdjustments.any { it.reason.contains("vorig advies") }
+
+            if (isHistoricalAdvice) {
+                append("• 📜 HISTORISCH ADVIES (wacht op nieuwe data)\n")
+            } else {
+                append("• 🔄 LAATSTE ANALYSE\n")
+            }
+
+            append("• Hoofdadvies: ${consolidatedAdvice.primaryAdvice}\n")
+            append("• Vertrouwen: ${getConfidenceIndicator(consolidatedAdvice.confidence)} ${(consolidatedAdvice.confidence * 100).toInt()}%\n")
+            append("• Reden: ${consolidatedAdvice.reasoning}\n")
+            append("• Advies leeftijd: $adviceAge\n")
+            append("• Laatste update: ${consolidatedAdvice.timestamp.toString("dd-MM HH:mm")}\n")
+            append("• Volgende update: over ${nextAdviceUpdate}h\n\n")
+
+            if (consolidatedAdvice.parameterAdjustments.isNotEmpty()) {
+                append("📊 AANBEVOLEN PARAMETER AANPASSINGEN:\n")
+                consolidatedAdvice.parameterAdjustments.forEach { advice ->
+                    val displayName = getParameterDisplayName(advice.parameterName)
+                    val currentFormatted = formatParameterValue(advice.parameterName, advice.currentValue)
+                    val recommendedFormatted = formatParameterValue(advice.parameterName, advice.recommendedValue)
+
+                    append("${getTrendSymbol(advice.changeDirection)} $displayName\n")
+                    append("   Huidig: $currentFormatted → Advies: $recommendedFormatted\n")
+                    append("   Richting: ${getDirectionText(advice.changeDirection)}\n")
+                    append("   Vertrouwen: ${getConfidenceIndicator(advice.confidence)} ${(advice.confidence * 100).toInt()}%\n")
+                    append("   Reden: ${advice.reason}\n")
+
+                    if (advice.reason.contains("vorig advies")) {
+                        append("   ⏰ Gebaseerd op eerdere analyse\n")
+                    }
+                    append("\n")
+                }
+            } else {
+                append("• Geen parameter aanpassingen nodig op dit moment\n")
+                append("• Alle parameters zijn optimaal ingesteld\n")
+            }
+        }
+
+        // ★★★ TIMING INFO (behouden voor metrics) ★★★
         val metricsAge = lastMetricsUpdate?.let {
             val minutes = Minutes.minutesBetween(it, DateTime.now()).minutes
             when {
@@ -3486,28 +3681,10 @@ Geen parameter advies beschikbaar"""
             }
         } ?: "nooit"
 
-        val adviceAge = lastAdviceUpdate?.let {
-            val hours = Hours.hoursBetween(it, DateTime.now()).hours
-            when {
-                hours < 1 -> "minder dan 1 uur"
-                hours == 1 -> "1 uur"
-                else -> "$hours uur"
-            }
-        } ?: "nooit"
-
-        val adviceInterval = try {
-            preferences.get(IntKey.Advice_Interval_Hours)
-        } catch (e: Exception) {
-            12
-        }
-
         val nextMetricsUpdate = METRICS_UPDATE_INTERVAL - (lastMetricsUpdate?.let {
             Minutes.minutesBetween(it, DateTime.now()).minutes
         } ?: METRICS_UPDATE_INTERVAL)
 
-        val nextAdviceUpdate = adviceInterval - (lastAdviceUpdate?.let {
-            Hours.hoursBetween(it, DateTime.now()).hours
-        } ?: adviceInterval)
 
         // ★★★ GECACHED PARAMETER SUMMARY ★★★
         val parameterSummary = getCachedParameterSummary()
@@ -3564,11 +3741,10 @@ $recentMealsDisplay"""
         }
 
 
-        val parameterAdviceSection = formatParameterSummary()
 
         return """
 ╔═══════════════════
-║  ══ FCL v3.0.0 ══ 
+║  ══ FCL v3.8.1 ══ 
 ╚═══════════════════
 
 🎯 LAATSTE BOLUS BESLISSING
@@ -3693,27 +3869,12 @@ $mealPerformanceSummary
 • Time Above Range: ${metrics7d.timeAboveRange.toInt()}%
 • Gemiddelde glucose: ${round(metrics7d.averageGlucose, 1)} mmol/L
 
-${parameterAdviceSection}
-
-$performanceSection
+${adviceSection}
         
         
 """.trimIndent()
     }
 
- //   🎯 PARAMETER OPTIMALISATIE ADVIES
- //   ─────────────────────
-
- //   PARAMETER LEARNING SYSTEEM
- //   ─────────────────────
- //   ${metricsHelper.getParameterLearningStatus()}
-
- //   PARAMETERS CONFIGURATIE OVERZICHT
- //   ─────────────────────
-
- //   $parameterSummary
-
- //   ${getAdviceHistorySection()}
 
     private fun getActivityStatusText(retention: Int): String {
         return when (retention) {
@@ -3731,6 +3892,29 @@ $performanceSection
     private fun round(value: Double, digits: Int): Double {
         val scale = Math.pow(10.0, digits.toDouble())
         return Math.round(value * scale) / scale
+    }
+
+    // ★★★ IOB VERIFICATION - Controleer of vorige bolus daadwerkelijk is afgegeven ★★★
+    private fun verifyBolusDelivery(
+        expectedBolus: Double,
+        currentIOB: Double,
+        lastBolusTime: DateTime?,
+        currentSlope: Double,
+        lastCalculatedBolus: Double
+    ): Boolean {
+        val minutesSinceLastBolus = lastBolusTime?.let {
+            Minutes.minutesBetween(it, DateTime.now()).minutes
+        } ?: 30
+
+        // Als er recent een bolus berekend werd maar IOB niet stijgt
+        if (minutesSinceLastBolus < 15 && lastCalculatedBolus > 0.5 &&
+            currentIOB < lastCalculatedBolus * 0.5) {
+
+            // ★★★ BIJ STERKE STIJGING: TOCH AFGEVEN ONDANKS VERMOEDELIJKE MISSED BOLUS ★★★
+            return currentSlope > 2.0
+        }
+
+        return true
     }
 
 

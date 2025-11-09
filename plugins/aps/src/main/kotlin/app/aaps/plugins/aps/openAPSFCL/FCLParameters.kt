@@ -32,6 +32,9 @@ class FCLParameters(private val preferences: Preferences) {
         val changeDirection: String // "INCREASE", "DECREASE", "OPTIMAL"
     )
 
+
+
+
     // ★★★ PARAMETER DEFINITIES - VOLLEDIGE LIJST ★★★
     private val parameterDefinitions = listOf(
         // ★★★ BOLUS PERCENTAGES ★★★
@@ -83,6 +86,36 @@ class FCLParameters(private val preferences: Preferences) {
             maxValue = 200.0,
             defaultValue = 30.0,
             description = "Percentage van volledige bolus bij late stijging",
+            impactLevel = "MEDIUM"
+        ),
+        ParameterDefinition(
+            key = DoubleKey.dynamic_night_aggressiveness_threshold,
+            name = "Nacht agressiviteit drempel",
+            category = "BOLUS",
+            minValue = 0.5,
+            maxValue = 5.0,
+            defaultValue = 2.0,
+            description = "Minimale stijging (mmol/L/uur) om nachtagressiviteit te verhogen bij maaltijden",
+            impactLevel = "MEDIUM"
+        ),
+        ParameterDefinition(
+            key = IntKey.enhanced_early_boost_perc,
+            name = "Vroege Bolus Boost %",
+            category = "BOLUS",
+            minValue = 10.0,
+            maxValue = 100.0,
+            defaultValue = 40.0,
+            description = "Maximale extra boost bij vroege stijgingen (10% - 100%)",
+            impactLevel = "MEDIUM"
+        ),
+        ParameterDefinition(
+            key = IntKey.min_minutes_between_bolus,
+            name = "Minimale tijd tussen bolussen (agressief)",
+            category = "BOLUS",
+            minValue = 5.0,
+            maxValue = 15.0,
+            defaultValue = 8.0,
+            description = "Minimale minuten tussen bolussen bij sterke stijgingen",
             impactLevel = "MEDIUM"
         ),
 

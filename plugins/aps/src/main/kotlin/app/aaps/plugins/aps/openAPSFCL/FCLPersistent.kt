@@ -32,12 +32,16 @@ class FCLPersistent(
     private var persistentBolusCount: Int = 0
     private var persistentGrens: Double = 0.6
 
-    // ★★★ PERSISTENT HIGH BG DETECTIE ★★★
+    // ★★★ VERBETERDE PERSISTENT CHECK MET DYNAMISCHE ISF EN TREND ★★★
     fun checkPersistentHighBG(
-        historicalData: List<BGDataPoint>,  // ← Nu herkend!
+        historicalData: List<BGDataPoint>,
         currentIOB: Double,
         maxIOB: Double,
-        isNachtTime: () -> Boolean
+        isNachtTime: () -> Boolean,
+        // ★★★ NIEUW: Effectieve ISF en trend informatie ★★★
+        effectiveISF: Double,
+        currentTrend: Double? = null,
+        robustTrends: FCL.RobustTrendAnalysis? = null
     ): PersistentResult {
 
         if (!preferences.get(BooleanKey.PersistentAanUit)) {
@@ -74,7 +78,24 @@ class FCLPersistent(
         var logEntries = mutableListOf<String>()
         logEntries.add("Persistent BG Analysis - $dagDeel")
 
-        // Stabiliteitscheck
+        // ★★★ VERBETERDE TREND DETECTIE - voorkom blokkeren bij minimale daling ★★★
+        val effectiveTrend = currentTrend ?: calculateRobustTrendForPersistent(historicalData)
+        val trendPhase = robustTrends?.phase ?: "unknown"
+
+        // ★★★ PRECIEZE DREMPELS VOOR VERSCHILLENDE DALINGSNIVEAUS ★★★
+        val isMinimalDecline = effectiveTrend in -0.8 .. -0.3 // 0.3-0.8 mmol/L/uur daling - NIET blokkeren
+        val isSignificantDecline = effectiveTrend < -0.8 // >0.8 mmol/L/uur daling - wel ingrijpen
+        val isStrongDecline = effectiveTrend < -1.5 // >1.5 mmol/L/uur - sterk ingrijpen
+        val isInDecliningPhase = trendPhase == "declining"
+
+        // ★★★ PRECIEZE IOB EFFECTIVITEIT MET EFFECTIEVE ISF ★★★
+        val remainingCorrection = (currentBG - persistentDrempel) / effectiveISF
+        val isIOBSufficient = currentIOB > remainingCorrection * 0.6 // IOB dekt >60% van benodigde correctie
+
+        logEntries.add("Trend analysis: ${"%.1f".format(effectiveTrend)} mmol/L/h, phase: $trendPhase")
+        logEntries.add("IOB analysis: ${"%.1f".format(currentIOB)}U vs needed: ${"%.1f".format(remainingCorrection)}U (${if (remainingCorrection > 0) (currentIOB/remainingCorrection*100).toInt() else 0}%)")
+
+        // Stabiliteitscheck (bestaande logica behouden)
         val isStableHighBG = (abs(delta5) < persistentGrens &&
             abs(delta15) < persistentGrens + 0.5 &&
             abs(delta30) < persistentGrens + 1.0 &&
@@ -87,6 +108,49 @@ class FCLPersistent(
             return PersistentResult(0.0, logEntries.joinToString("\n"), false)
         }
 
+        // ★★★ GELAAGDE BESLISSINGSLOGICA ★★★
+        val declineReductionFactor = when {
+            // ★★★ STERKE DALING + VOLDOENDE IOB = BLOKKEER ★★★
+            isStrongDecline && isIOBSufficient -> {
+                logEntries.add("BLOCKED: Strong decline (${"%.1f".format(effectiveTrend)} mmol/L/h) with sufficient IOB")
+                0.0
+            }
+
+            // ★★★ SIGNIFICANTE DALING + VOLDOENDE IOB = VERMINDER STERK ★★★
+            isSignificantDecline && isIOBSufficient -> {
+                logEntries.add("REDUCED: Significant decline (${"%.1f".format(effectiveTrend)} mmol/L/h) with sufficient IOB")
+                0.3
+            }
+
+            // ★★★ MINIMALE DALING = LICHT VERMINDEREN ★★★
+            isMinimalDecline -> {
+                logEntries.add("SLIGHTLY REDUCED: Minimal decline (${"%.1f".format(effectiveTrend)} mmol/L/h)")
+                0.7
+            }
+
+            // ★★★ DALENDE FASE ZONDER SUFFICIENT IOB = LICHT VERMINDEREN ★★★
+            isInDecliningPhase && !isIOBSufficient -> {
+                logEntries.add("SLIGHTLY REDUCED: Declining phase but IOB not sufficient")
+                0.8
+            }
+
+            // ★★★ GEEN DALING OF STIJGING = NORMAAL ★★★
+            else -> {
+                logEntries.add("NORMAL: Stable/rising trend (${"%.1f".format(effectiveTrend)} mmol/L/h)")
+                1.0
+            }
+        }
+
+        // ★★★ BLOKKEER COMPLEET BIJ STERKE DALING + VOLDOENDE IOB ★★★
+        if (declineReductionFactor == 0.0) {
+            return PersistentResult(0.0,
+                                    "Persistent: BLOCKED - Strong decline (${"%.1f".format(effectiveTrend)} mmol/L/h) with sufficient IOB (${"%.1f".format(currentIOB)}U covers ${if (remainingCorrection > 0) (currentIOB/remainingCorrection*100).toInt() else 0}% of needed ${"%.1f".format(remainingCorrection)}U)",
+                                    false)
+        }
+
+        logEntries.add("Persistent high BG detected!")
+        logEntries.add("BG: ${"%.1f".format(currentBG)} > threshold: ${"%.1f".format(persistentDrempel)}")
+
         // ★★★ LINEAIRE PROGRESSIE TUSSEN TARGET EN TARGET+2 ★★★
         val bgAboveThreshold = currentBG - persistentDrempel
         val linearRange = 1.0 // mmol/L range voor lineaire progressie
@@ -97,8 +161,6 @@ class FCLPersistent(
         // Basis bolus = lineaire progressie van 0 tot maxBolus
         val baseBolus = maxBolus * linearFactor
 
-        logEntries.add("Persistent high BG detected!")
-        logEntries.add("BG: ${"%.1f".format(currentBG)} > threshold: ${"%.1f".format(persistentDrempel)}")
         logEntries.add("BG above threshold: ${"%.1f".format(bgAboveThreshold)} mmol/L")
         logEntries.add("Linear factor: ${(linearFactor * 100).toInt()}%")
         logEntries.add("Base bolus: ${"%.2f".format(baseBolus)}U")
@@ -112,8 +174,8 @@ class FCLPersistent(
             else -> 1.0
         }
 
-        // ★★★ TOEPASSEN IOB CORRECTIE ★★★
-        var calculatedBolus = baseBolus * iobFactor
+        // ★★★ TOEPASSEN IOB CORRECTIE EN TREND REDUCTIE ★★★
+        var calculatedBolus = baseBolus * iobFactor * declineReductionFactor
 
         // Begrens tot max bolus (veiligheidsnet)
         val finalBolus = min(calculatedBolus, maxBolus)
@@ -131,16 +193,36 @@ class FCLPersistent(
         logEntries.add("Extra bolus: ${"%.2f".format(finalBolus)}U")
         logEntries.add("Max allowed: ${"%.2f".format(maxBolus)}U")
         logEntries.add("IOB factor: ${(iobFactor * 100).toInt()}%")
+        if (declineReductionFactor < 1.0) {
+            logEntries.add("Trend reduction: ${(declineReductionFactor * 100).toInt()}%")
+        }
         logEntries.add("Linear progress: ${(linearFactor * 100).toInt()}%")
         logEntries.add("Nr boluses: $persistentBolusCount")
 
-        val logEntry = "${DateTime.now().toString("HH:mm")} | BG: ${"%.1f".format(currentBG)} | BOLUS: ${"%.2f".format(finalBolus)}U"
+        val logEntry = "${DateTime.now().toString("HH:mm")} | BG: ${"%.1f".format(currentBG)} | BOLUS: ${"%.2f".format(finalBolus)}U | Trend: ${"%.1f".format(effectiveTrend)}"
         persistentLogHistory.add(0, logEntry)
         if (persistentLogHistory.size > MAX_LOG_HISTORY) {
             persistentLogHistory.removeAt(persistentLogHistory.lastIndex)
         }
 
         return PersistentResult(roundDose(finalBolus), logEntries.joinToString("\n"), true)
+    }
+
+    // ★★★ ROBUUSTE TREND BEREKENING VOOR PERSISTENT ★★★
+    private fun calculateRobustTrendForPersistent(historicalData: List<BGDataPoint>): Double {
+        if (historicalData.size < 6) return 0.0
+
+        // Gebruik gewogen gemiddelde van laatste 20-30 minuten voor stabiliteit
+        val recentPoints = historicalData.takeLast(6) // ~30 minuten bij 5-min data
+        val timeWindowHours = Minutes.minutesBetween(recentPoints.first().timestamp, recentPoints.last().timestamp).minutes / 60.0
+
+        if (timeWindowHours <= 0) return 0.0
+
+        val bgChange = recentPoints.last().bg - recentPoints.first().bg
+        val trend = bgChange / timeWindowHours
+
+        // Filter ruis: alleen significante trends doorgeven
+        return if (abs(trend) > 0.2) trend else 0.0
     }
 
     // Helper functie voor status weergave

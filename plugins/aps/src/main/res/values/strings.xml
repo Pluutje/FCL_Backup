@@ -344,6 +344,13 @@
     <string name="MinDelay_resistentie_summary">Het aantal minuten (-60 tot + 120) waarmee de terugkijk tijd tov de huidige tijd wordt verschoven.</string>
     <string name="MinDelay_resistentie_title">Aantal minuten verschuiving</string>
 
+    <string name="dynamic_night_aggressiveness_threshold_summary">Minimale stijging (mmol/L/uur) om nachtagressiviteit te verhogen bij maaltijden</string>
+    <string name="dynamic_night_aggressiveness_threshold_title">Nacht agressiviteit drempel</string>
+    <string name="enhanced_early_boost_perc_summary">Maximale extra boost bij vroege stijgingen (10% tot 100%)</string>
+    <string name="enhanced_early_boost_perc_title">Extra vroege boost %</string>
+    <string name="min_minutes_between_bolus_summary">Minimale minuten tussen bolussen bij sterke stijginge.</string>
+    <string name="min_minutes_between_bolus_title">Minimale tijd tussen bolussen (agressief)</string>
+
     <string name="phase_early_rise_slope_summary"></string>
     <string name="phase_early_rise_slope_title">Phase EarlyRise Slope</string>
     <string name="phase_mid_rise_slope_summary"></string>

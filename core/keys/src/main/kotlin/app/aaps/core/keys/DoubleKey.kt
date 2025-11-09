@@ -65,7 +65,7 @@ enum class DoubleKey(
     hypoThresholdDay("hypoThresholdDay", 4.0,3.8,4.5),
     hypoThresholdNight("hypoThresholdNight", 4.5,3.8,5.0),
     hypoRecoveryBGRange("hypoRecoveryBGRange", 2.5,1.5,3.0),
-    hypo_recovery_aggressiveness("hypo_recovery_aggressiveness", 0.7,0.1,1.0),
+
 
     Dag_resistentie_target("Dag_resistentie_target", 5.2,4.0,8.0),
     Nacht_resistentie_target("Dacht_resistentie_target", 5.2,4.0,8.0),
@@ -77,6 +77,8 @@ enum class DoubleKey(
     phase_peak_slope("phase_peak_slope", 0.1,-0.5,0.8),
     phase_early_rise_accel("phase_early_rise_accel", 0.2,0.05,0.5),
     phase_min_consistency("phase_min_consistency", 0.6,0.3,0.9),
+
+    dynamic_night_aggressiveness_threshold("dynamic_night_aggressiveness_threshold", 2.0,0.5,5.0),
 
 
 }

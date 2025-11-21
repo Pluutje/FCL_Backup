@@ -335,20 +335,22 @@ class DetermineBasalFCL @Inject constructor(
             "IOB_corr_perc" to preferences.get(IntKey.IOB_corr_perc).toString(),
 
             // Bolus percentages
-            "bolus_perc_early" to preferences.get(IntKey.bolus_perc_early).toString(),
+
+            "hybrid_basal_perc" to preferences.get(IntKey.hybrid_basal_perc).toString(),
             "bolus_perc_day" to preferences.get(IntKey.bolus_perc_day).toString(),
             "bolus_perc_night" to preferences.get(IntKey.bolus_perc_night).toString(),
-            "bolus_perc_mid" to preferences.get(IntKey.bolus_perc_mid).toString(),
-            "bolus_perc_late" to preferences.get(IntKey.bolus_perc_late).toString(),
+            "bolus_perc_rising" to preferences.get(IntKey.bolus_perc_rising).toString(),
+            "bolus_perc_plateau" to preferences.get(IntKey.bolus_perc_plateau).toString(),
 
 
             // Fase detectie parameters
-            "phase_early_rise_slope" to round(preferences.get(DoubleKey.phase_early_rise_slope),2).toString(),
-            "phase_mid_rise_slope" to round(preferences.get(DoubleKey.phase_mid_rise_slope),2).toString(),
-            "phase_late_rise_slope" to round(preferences.get(DoubleKey.phase_late_rise_slope),2).toString(),
+            "phase_rising_slope" to round(preferences.get(DoubleKey.phase_rising_slope),2).toString(),
+            "phase_plateau_slope" to round(preferences.get(DoubleKey.phase_plateau_slope),2).toString(),
             "phase_peak_slope" to round(preferences.get(DoubleKey.phase_peak_slope),2).toString(),
             "phase_early_rise_accel" to round(preferences.get(DoubleKey.phase_early_rise_accel),2).toString(),
             "phase_min_consistency" to round(preferences.get(DoubleKey.phase_min_consistency),2).toString(),
+            "data_smoothing_alpha" to round(preferences.get(DoubleKey.data_smoothing_alpha),2).toString(),
+            "direction_consistency_threshold" to round(preferences.get(DoubleKey.direction_consistency_threshold),2).toString(),
 
             // Veiligheids parameters
             "peak_damping_percentage" to preferences.get(IntKey.peak_damping_percentage).toString(),
@@ -687,7 +689,7 @@ class DetermineBasalFCL @Inject constructor(
 
 
         logFCLParameters()
-        FCL_SMB = fclAdvice.dose
+
 
 
 
@@ -962,31 +964,30 @@ class DetermineBasalFCL @Inject constructor(
 // *************************************************************************************************************************8
 // *************************************************************************************************************************8
 
-        if (FCL_SMB > 0.0 && fclAdvice.shouldDeliverBolus) {
 
-            rT.reason.append("=> Bolus perc: ${preferences.get(IntKey.bolus_perc_day)} SMB:  $FCL_SMB eh ")
+        FCL_SMB = fclAdvice.bolusAmount
 
-         //   if (iob_data.iob + FCL_SMB > max_iob) {
-         //     FCL_SMB = max_iob - iob_data.iob
-         //     FCL_SMB = round(FCL_SMB * 20, 0) / 20
-         //     rT.reason.append("Bolus beperkt tot $FCL_SMB eh ivm max_IOB $max_iob")
-         //   }
+        if ((FCL_SMB > 0.0 || fclAdvice.basalRate > 0.0) && fclAdvice.shouldDeliverBolus) {
 
-            FCL_SMB = Math.min(preferences.get(DoubleKey.max_bolus),FCL_SMB)
+            if (fclAdvice.basalRate > 0) {
+                // HYBRIDE MODE: Temp basaal + gereduceerde bolus
+                rT.reason.append("=> Hybrid: ${fclAdvice.hybridPercentage}% basaal | ")
+                rT.reason.append("SMB: ${round(fclAdvice.bolusAmount, 2)}U | ")
+                rT.reason.append("Temp: ${round(fclAdvice.basalRate, 2)}U/h ")
 
+                rT.rate = fclAdvice.basalRate
+                rT.units = FCL_SMB
 
-            rT.rate = when (fclAdvice.mathPhase) {
-                "early_rise" -> basal/2
-                "mid_rise" -> basal/3
-                "late_rise" -> basal/4
-                 else -> 0.0
+            } else {
+                // STANDARD MODE: Alleen bolus
+                rT.reason.append("=> Bolus perc: ${preferences.get(IntKey.bolus_perc_day)} SMB:  $FCL_SMB eh ")
+                FCL_SMB = Math.min(preferences.get(DoubleKey.max_bolus),FCL_SMB)
+                if (fclAdvice.detectedCarbs >99 ) {rT.rate = basal/2 } else {rT.rate = 0.0}
+                rT.units = FCL_SMB
             }
-            if (fclAdvice.detectedCarbs >99 ) {rT.rate = basal/2 } else {rT.rate = 0.0}
 
             rT.deliverAt = deliverAt
             rT.duration = 30
-
-            rT.units = FCL_SMB
             return rT
         }
 // *************************************************************************************************************************8

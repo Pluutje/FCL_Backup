@@ -92,9 +92,13 @@ class FCLLearningEngine(
         val predictedPeak: Double,
         val actualPeak: Double,
         val timeToPeak: Int,
-        val bolusPercEarly: Double,
+        // ★★★ NIEUWE 2-FASEN PARAMETERS ★★★
+        val bolusPercRising: Double,
+        val bolusPercPlateau: Double,
         val bolusPercDay: Double,
         val bolusPercNight: Double,
+        val phaseRisingSlope: Double,
+        val phasePlateauSlope: Double,
         val peakDampingFactor: Double,
         val hypoRiskFactor: Double,
         val outcome: String,
@@ -326,9 +330,13 @@ class FCLLearningEngine(
                     predictedPeak = result.predictedPeak,
                     actualPeak = result.actualPeak,
                     timeToPeak = result.timeToPeak,
-                    bolusPercEarly = result.parameters.bolusPercEarly,
+                    // ★★★ NIEUWE 2-FASEN PARAMETERS ★★★
+                    bolusPercRising = result.parameters.bolusPercRising,
+                    bolusPercPlateau = result.parameters.bolusPercPlateau,
                     bolusPercDay = result.parameters.bolusPercDay,
                     bolusPercNight = result.parameters.bolusPercNight,
+                    phaseRisingSlope = result.parameters.phaseRisingSlope,
+                    phasePlateauSlope = result.parameters.phasePlateauSlope,
                     peakDampingFactor = result.parameters.peakDampingFactor,
                     hypoRiskFactor = result.parameters.hypoRiskFactor,
                     outcome = result.outcome,
@@ -361,9 +369,13 @@ class FCLLearningEngine(
                     actualPeak = it.actualPeak,
                     timeToPeak = it.timeToPeak,
                     parameters = MealParameters(
-                        bolusPercEarly = it.bolusPercEarly,
+                        // ★★★ NIEUWE 2-FASEN PARAMETERS ★★★
+                        bolusPercRising = it.bolusPercRising,
+                        bolusPercPlateau = it.bolusPercPlateau,
                         bolusPercDay = it.bolusPercDay,
                         bolusPercNight = it.bolusPercNight,
+                        phaseRisingSlope = it.phaseRisingSlope,
+                        phasePlateauSlope = it.phasePlateauSlope,
                         peakDampingFactor = it.peakDampingFactor,
                         hypoRiskFactor = it.hypoRiskFactor,
                         timestamp = DateTime(it.timestamp)
@@ -514,9 +526,13 @@ class FCLLearningEngine(
     )
 
     data class MealParameters(
-        val bolusPercEarly: Double,
+        // ★★★ NIEUWE 2-FASEN PARAMETERS ★★★
+        val bolusPercRising: Double,      // Vervangt bolusPercEarly, bolusPercMid, bolusPercLate
+        val bolusPercPlateau: Double,     // Nieuwe plateau fase parameter
         val bolusPercDay: Double,
         val bolusPercNight: Double,
+        val phaseRisingSlope: Double,     // Vervangt phase_early_rise_slope, phase_mid_rise_slope, phase_late_rise_slope
+        val phasePlateauSlope: Double,    // Nieuwe plateau drempel
         val peakDampingFactor: Double,
         val hypoRiskFactor: Double,
         val timestamp: DateTime

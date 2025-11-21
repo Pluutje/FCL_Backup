@@ -71,14 +71,19 @@ enum class DoubleKey(
     Nacht_resistentie_target("Dacht_resistentie_target", 5.2,4.0,8.0),
     Uren_resistentie("Uren_resistentie", 2.5,1.0,5.0),
 
-    phase_early_rise_slope("phase_early_rise_slope", 1.0,0.3,2.5),
-    phase_mid_rise_slope("phase_mid_rise_slope", 1.0,0.3,2.5),
-    phase_late_rise_slope("phase_late_rise_slope", 0.4,0.1,1.0),
+    phase_rising_slope("phase_rising_slope", 1.5,0.3,3.0),
+    phase_plateau_slope("phase_plateau_slope", 0.3,0.0,1.0),
+
+//    phase_early_rise_slope("phase_early_rise_slope", 1.0,0.3,2.5),
+//    phase_mid_rise_slope("phase_mid_rise_slope", 1.0,0.3,2.5),
+//    phase_late_rise_slope("phase_late_rise_slope", 0.4,0.1,1.0),
     phase_peak_slope("phase_peak_slope", 0.1,-0.5,0.8),
     phase_early_rise_accel("phase_early_rise_accel", 0.2,0.05,0.5),
     phase_min_consistency("phase_min_consistency", 0.6,0.3,0.9),
 
     dynamic_night_aggressiveness_threshold("dynamic_night_aggressiveness_threshold", 2.0,0.5,5.0),
 
+    data_smoothing_alpha("data_smoothing_alpha", 0.4,0.1,0.8),
+    direction_consistency_threshold("direction_consistency_threshold", 0.7,0.3,0.9),
 
 }

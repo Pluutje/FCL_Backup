@@ -75,11 +75,17 @@ enum class IntKey(
     stap_5minuten("stap_5minuten", 200,100,400),
     stap_retentie("stap_retentie", 6,2,12),
 
+    hybrid_basal_perc("hybrid_basal_perc", 30,0,100),
     bolus_perc_day("bolus_perc_day", 100,10,200),
     bolus_perc_night("bolus_perc_night", 20,5,100),
-    bolus_perc_early("bolus_perc_early", 100,10,200),
-    bolus_perc_mid("bolus_perc_mid", 60,10,200),
-    bolus_perc_late("bolus_perc_late", 30,10,200),
+ //   bolus_perc_early("bolus_perc_early", 100,10,200),
+ //   bolus_perc_mid("bolus_perc_mid", 60,10,200),
+
+    bolus_perc_rising("bolus_perc_rising", 120,10,200),
+    bolus_perc_plateau("bolus_perc_plateau", 60,10,200),
+
+ //   bolus_perc_late("bolus_perc_late", 30,10,200),
+    fcl_stop_aggressiveness("fcl_stop_aggressiveness", 50,5,100),
     IOB_strongRise_perc("IOB_strongRise_perc", 100,100,125),
     IOB_corr_perc("IOB_corr_perc", 100,50,150),
 

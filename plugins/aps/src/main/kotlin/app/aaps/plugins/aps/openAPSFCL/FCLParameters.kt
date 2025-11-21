@@ -32,22 +32,53 @@ class FCLParameters(private val preferences: Preferences) {
         val changeDirection: String // "INCREASE", "DECREASE", "OPTIMAL"
     )
 
-
-
-
-    // ★★★ PARAMETER DEFINITIES - VOLLEDIGE LIJST ★★★
+    // ★★★ PARAMETER DEFINITIES - NIEUWE 2-FASE STRUCTUUR ★★★
     private val parameterDefinitions = listOf(
-        // ★★★ BOLUS PERCENTAGES ★★★
+        // ★★★ NIEUWE 2-FASE BOLUS PARAMETERS ★★★
         ParameterDefinition(
-            key = IntKey.bolus_perc_early,
-            name = "Early Rise Bolus %",
+            key = IntKey.bolus_perc_rising,
+            name = "Rising Phase Bolus %",
             category = "BOLUS",
             minValue = 10.0,
             maxValue = 200.0,
             defaultValue = 100.0,
-            description = "Percentage van volledige bolus bij vroege stijging",
+            description = "Percentage van volledige bolus bij stijgende fase",
             impactLevel = "HIGH"
         ),
+        ParameterDefinition(
+            key = IntKey.bolus_perc_plateau,
+            name = "Plateau Phase Bolus %",
+            category = "BOLUS",
+            minValue = 10.0,
+            maxValue = 200.0,
+            defaultValue = 60.0,
+            description = "Percentage van volledige bolus bij plateau fase",
+            impactLevel = "HIGH"
+        ),
+
+        // ★★★ NIEUWE 2-FASE DETECTIE PARAMETERS ★★★
+        ParameterDefinition(
+            key = DoubleKey.phase_rising_slope,
+            name = "Rising Phase Slope",
+            category = "PHASE_DETECTION",
+            minValue = 0.3,
+            maxValue = 2.5,
+            defaultValue = 1.0,
+            description = "Minimale stijging (mmol/L/uur) voor stijgende fase detectie",
+            impactLevel = "HIGH"
+        ),
+        ParameterDefinition(
+            key = DoubleKey.phase_plateau_slope,
+            name = "Plateau Phase Slope",
+            category = "PHASE_DETECTION",
+            minValue = 0.1,
+            maxValue = 1.0,
+            defaultValue = 0.4,
+            description = "Minimale stijging (mmol/L/uur) voor plateau fase detectie",
+            impactLevel = "HIGH"
+        ),
+
+        // ★★★ DAG/NACHT BOLUS PARAMETERS ★★★
         ParameterDefinition(
             key = IntKey.bolus_perc_day,
             name = "Daytime Bolus %",
@@ -68,26 +99,8 @@ class FCLParameters(private val preferences: Preferences) {
             description = "Algemene bolus agressiviteit 's nachts",
             impactLevel = "HIGH"
         ),
-        ParameterDefinition(
-            key = IntKey.bolus_perc_mid,
-            name = "Mid Rise Bolus %",
-            category = "BOLUS",
-            minValue = 10.0,
-            maxValue = 200.0,
-            defaultValue = 60.0,
-            description = "Percentage van volledige bolus bij middelmatige stijging",
-            impactLevel = "MEDIUM"
-        ),
-        ParameterDefinition(
-            key = IntKey.bolus_perc_late,
-            name = "Late Rise Bolus %",
-            category = "BOLUS",
-            minValue = 10.0,
-            maxValue = 200.0,
-            defaultValue = 30.0,
-            description = "Percentage van volledige bolus bij late stijging",
-            impactLevel = "MEDIUM"
-        ),
+
+        // ★★★ DYNAMISCHE AGRESSIVITEIT PARAMETERS ★★★
         ParameterDefinition(
             key = DoubleKey.dynamic_night_aggressiveness_threshold,
             name = "Nacht agressiviteit drempel",
@@ -105,12 +118,12 @@ class FCLParameters(private val preferences: Preferences) {
             minValue = 10.0,
             maxValue = 100.0,
             defaultValue = 40.0,
-            description = "Maximale extra boost bij vroege stijgingen (10% - 100%)",
+            description = "Maximale extra boost bij sterke stijgingen (10% - 100%)",
             impactLevel = "MEDIUM"
         ),
         ParameterDefinition(
             key = IntKey.min_minutes_between_bolus,
-            name = "Minimale tijd tussen bolussen (agressief)",
+            name = "Minimale tijd tussen bolussen",
             category = "BOLUS",
             minValue = 5.0,
             maxValue = 15.0,
@@ -119,37 +132,7 @@ class FCLParameters(private val preferences: Preferences) {
             impactLevel = "MEDIUM"
         ),
 
-        // ★★★ FASE DETECTIE PARAMETERS ★★★
-        ParameterDefinition(
-            key = DoubleKey.phase_early_rise_slope,
-            name = "Early Rise Slope",
-            category = "PHASE_DETECTION",
-            minValue = 0.3,
-            maxValue = 2.5,
-            defaultValue = 1.0,
-            description = "Minimale stijging (mmol/L/uur) voor vroege fase detectie",
-            impactLevel = "HIGH"
-        ),
-        ParameterDefinition(
-            key = DoubleKey.phase_mid_rise_slope,
-            name = "Mid Rise Slope",
-            category = "PHASE_DETECTION",
-            minValue = 0.3,
-            maxValue = 2.5,
-            defaultValue = 1.0,
-            description = "Minimale stijging (mmol/L/uur) voor mid fase detectie",
-            impactLevel = "MEDIUM"
-        ),
-        ParameterDefinition(
-            key = DoubleKey.phase_late_rise_slope,
-            name = "Late Rise Slope",
-            category = "PHASE_DETECTION",
-            minValue = 0.1,
-            maxValue = 1.0,
-            defaultValue = 0.4,
-            description = "Minimale stijging (mmol/L/uur) voor late fase detectie",
-            impactLevel = "MEDIUM"
-        ),
+        // ★★★ FASE DETECTIE VERFIJNING PARAMETERS ★★★
         ParameterDefinition(
             key = DoubleKey.phase_peak_slope,
             name = "Peak Slope",
@@ -162,12 +145,12 @@ class FCLParameters(private val preferences: Preferences) {
         ),
         ParameterDefinition(
             key = DoubleKey.phase_early_rise_accel,
-            name = "Early Rise Acceleration",
+            name = "Rising Phase Acceleration",
             category = "PHASE_DETECTION",
             minValue = 0.05,
             maxValue = 0.5,
             defaultValue = 0.2,
-            description = "Versnelling voor vroege fase detectie",
+            description = "Versnelling voor stijgende fase detectie",
             impactLevel = "LOW"
         ),
         ParameterDefinition(
@@ -273,6 +256,24 @@ class FCLParameters(private val preferences: Preferences) {
         return parameterDefinitions.find { it.name == parameterName }
     }
 
+    // ★★★ NIEUWE FUNCTIE: Get parameter by technical name ★★★
+    fun getParameterValueByTechnicalName(technicalName: String): Double? {
+        return when (technicalName) {
+            "bolus_perc_rising" -> getParameterValue("Rising Phase Bolus %")
+            "bolus_perc_plateau" -> getParameterValue("Plateau Phase Bolus %")
+            "phase_rising_slope" -> getParameterValue("Rising Phase Slope")
+            "phase_plateau_slope" -> getParameterValue("Plateau Phase Slope")
+            "bolus_perc_day" -> getParameterValue("Daytime Bolus %")
+            "bolus_perc_night" -> getParameterValue("Nighttime Bolus %")
+            "meal_detection_sensitivity" -> getParameterValue("Meal Detection Sensitivity")
+            "carb_percentage" -> getParameterValue("Carb Detection %")
+            "peak_damping_percentage" -> getParameterValue("Peak Damping %")
+            "hypo_risk_percentage" -> getParameterValue("Hypo Risk Bolus %")
+            "IOB_corr_perc" -> getParameterValue("IOB Safety %")
+            else -> null
+        }
+    }
+
     // ★★★ INTERNE HULPFUNCTIES ★★★
 
     private fun getParameterValue(definition: ParameterDefinition): Double {
@@ -292,20 +293,62 @@ class FCLParameters(private val preferences: Preferences) {
         val highImpact = getHighImpactParameters()
 
         return buildString {
-            append("Totaal parameters: ${getAllParameters().size}\n")
-            append("Hoog impact parameters: ${highImpact.size}\n\n")
+            append("🎯 FCL PARAMETER OVERZICHT - 2-FASE SYSTEEM\n")
+            append("═══════════════════════════════════════\n")
+            append("• Totaal parameters: ${getAllParameters().size}\n")
+            append("• Hoog impact parameters: ${highImpact.size}\n\n")
 
-            highImpact.forEach { (name, value) ->
+            append("🚀 2-FASE BOLUS PARAMETERS:\n")
+            getParametersByCategory("BOLUS").filter {
+                it.key.contains("Rising") || it.key.contains("Plateau")
+            }.forEach { (name, value) ->
                 val formattedValue = formatParameterValue(value.current, value.definition)
-                append("🔹$name: $formattedValue (${value.definition.description})\n")
+                append("  📈 $name: $formattedValue\n")
+                append("     ${value.definition.description}\n\n")
+            }
+
+            append("🌙 DAG/NACHT PARAMETERS:\n")
+            getParametersByCategory("BOLUS").filter {
+                it.key.contains("Day") || it.key.contains("Night")
+            }.forEach { (name, value) ->
+                val formattedValue = formatParameterValue(value.current, value.definition)
+                append("  ⏰ $name: $formattedValue\n")
+                append("     ${value.definition.description}\n\n")
+            }
+
+            append("🎯 FASE DETECTIE PARAMETERS:\n")
+            getParametersByCategory("PHASE_DETECTION").forEach { (name, value) ->
+                val formattedValue = formatParameterValue(value.current, value.definition)
+                append("  🔍 $name: $formattedValue\n")
+                append("     ${value.definition.description}\n\n")
+            }
+
+            append("🍽️ MAALTIJD PARAMETERS:\n")
+            getParametersByCategory("MEAL").forEach { (name, value) ->
+                val formattedValue = formatParameterValue(value.current, value.definition)
+                append("  🍴 $name: $formattedValue\n")
+                append("     ${value.definition.description}\n\n")
+            }
+
+            append("🛡️ VEILIGHEID PARAMETERS:\n")
+            getParametersByCategory("SAFETY").forEach { (name, value) ->
+                val formattedValue = formatParameterValue(value.current, value.definition)
+                append("  ⚠️ $name: $formattedValue\n")
+                append("     ${value.definition.description}\n\n")
             }
         }
     }
 
     private fun formatParameterValue(value: Double, definition: FCLParameters.ParameterDefinition): String {
         return when (definition.key) {
-            is IntKey -> "${value.toInt()}" // 0 decimalen voor percentages
-            is DoubleKey -> "%.2f".format(value) // 2 decimalen voor slopes/sensitiviteiten
+            is IntKey -> "${value.toInt()}%" // Toon als percentage voor IntKey parameters
+            is DoubleKey -> {
+                when {
+                    definition.name.contains("Slope", ignoreCase = true) -> "%.1f mmol/L/uur".format(value)
+                    definition.name.contains("Sensitivity", ignoreCase = true) -> "%.2f mmol/L/5min".format(value)
+                    else -> "%.2f".format(value) // Standaard 2 decimalen
+                }
+            }
             else -> "%.2f".format(value) // fallback
         }
     }

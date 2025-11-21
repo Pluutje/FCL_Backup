@@ -48,6 +48,7 @@ import app.aaps.core.interfaces.utils.HardLimits
 import app.aaps.core.interfaces.utils.Round
 import app.aaps.core.keys.BooleanKey
 import app.aaps.core.keys.DoubleKey
+import app.aaps.core.keys.DoubleKey.data_smoothing_alpha
 import app.aaps.core.keys.IntKey
 import app.aaps.core.keys.IntentKey
 import app.aaps.core.keys.Preferences
@@ -629,6 +630,7 @@ open class OpenAPSFCLPlugin @Inject constructor(
                     addPreference(AdaptiveDoublePreference(ctx = context, doubleKey = DoubleKey.max_bolus, dialogMessage = R.string.max_bolus_summary, title = R.string.max_bolus_title))
                     addPreference(AdaptiveDoublePreference(ctx = context, doubleKey = DoubleKey.ApsMaxBasal, dialogMessage = R.string.openapsma_max_basal_summary, title = R.string.openapsma_max_basal_title))
                     addPreference(AdaptiveDoublePreference(ctx = context, doubleKey = DoubleKey.ApsSmbMaxIob, dialogMessage = R.string.openapssmb_max_iob_summary, title = R.string.openapssmb_max_iob_title))
+                    addPreference(AdaptiveIntPreference(ctx = context, intKey = IntKey.fcl_stop_aggressiveness, dialogMessage = R.string.fcl_stop_aggressiveness_summary, title = R.string.fcl_stop_aggressiveness_title))
                     addPreference(AdaptiveIntPreference(ctx = context, intKey = IntKey.IOB_strongRise_perc, dialogMessage = R.string.IOB_strongRise_perc_summary, title = R.string.IOB_strongRise_perc_title))
                     addPreference(AdaptiveIntPreference(ctx = context, intKey = IntKey.IOB_corr_perc, dialogMessage = R.string.IOB_corr_perc_summary, title = R.string.IOB_corr_perc_title))
 
@@ -651,24 +653,31 @@ open class OpenAPSFCLPlugin @Inject constructor(
                         )
                     )
 
-
                     addPreference(AdaptiveIntPreference(ctx = context, intKey = IntKey.bolus_perc_day, dialogMessage = R.string.bolus_perc_day_summary, title = R.string.bolus_perc_day_title))
                     addPreference(AdaptiveIntPreference(ctx = context, intKey = IntKey.bolus_perc_night, dialogMessage = R.string.bolus_perc_night_summary, title = R.string.bolus_perc_night_title))
+                    addPreference(AdaptiveIntPreference(ctx = context, intKey = IntKey.hybrid_basal_perc, dialogMessage = R.string.hybrid_basal_perc_summary, title = R.string.hybrid_basal_perc_title))
+                    addPreference(AdaptiveDoublePreference(ctx = context, doubleKey = DoubleKey.phase_rising_slope, dialogMessage = R.string.phase_rising_slope_summary, title = R.string.phase_rising_slope_title))
+                    addPreference(AdaptiveDoublePreference(ctx = context, doubleKey = DoubleKey.phase_plateau_slope, dialogMessage = R.string.phase_plateau_slope_summary, title = R.string.phase_plateau_slope_title))
+                    addPreference(AdaptiveIntPreference(ctx = context, intKey = IntKey.bolus_perc_rising, dialogMessage = R.string.bolus_perc_rising_summary, title = R.string.bolus_perc_rising_title))
+                    addPreference(AdaptiveIntPreference(ctx = context, intKey = IntKey.bolus_perc_plateau, dialogMessage = R.string.bolus_perc_plateau_summary, title = R.string.bolus_perc_plateau_title))
                     addPreference(AdaptiveDoublePreference(ctx = context, doubleKey = DoubleKey.dynamic_night_aggressiveness_threshold, dialogMessage = R.string.dynamic_night_aggressiveness_threshold_summary, title = R.string.dynamic_night_aggressiveness_threshold_title))
-                    addPreference(AdaptiveIntPreference(ctx = context, intKey = IntKey.bolus_perc_early, dialogMessage = R.string.bolus_perc_early_summary, title = R.string.bolus_perc_early_title))
                     addPreference(AdaptiveIntPreference(ctx = context, intKey = IntKey.enhanced_early_boost_perc, dialogMessage = R.string.enhanced_early_boost_perc_summary, title = R.string.enhanced_early_boost_perc_title))
-                    addPreference(AdaptiveIntPreference(ctx = context, intKey = IntKey.bolus_perc_mid, dialogMessage = R.string.bolus_perc_mid_summary, title = R.string.bolus_perc_mid_title))
-                    addPreference(AdaptiveIntPreference(ctx = context, intKey = IntKey.bolus_perc_late, dialogMessage = R.string.bolus_perc_late_summary, title = R.string.bolus_perc_late_title))
                     addPreference(AdaptiveIntPreference(ctx = context, intKey = IntKey.peak_damping_percentage, dialogMessage = R.string.peak_damping_percentage_summary, title = R.string.peak_damping_percentage_title))
                     addPreference(AdaptiveIntPreference(ctx = context, intKey = IntKey.hypo_risk_percentage, dialogMessage = R.string.hypo_risk_percentage_summary, title = R.string.hypo_risk_percentage_title))
                     addPreference(AdaptiveIntPreference(ctx = context, intKey = IntKey.min_minutes_between_bolus, dialogMessage = R.string.min_minutes_between_bolus_summary, title = R.string.min_minutes_between_bolus_title))
+
+                //    addPreference(AdaptiveIntPreference(ctx = context, intKey = IntKey.bolus_perc_early, dialogMessage = R.string.bolus_perc_early_summary, title = R.string.bolus_perc_early_title))
+
+                //    addPreference(AdaptiveIntPreference(ctx = context, intKey = IntKey.bolus_perc_mid, dialogMessage = R.string.bolus_perc_mid_summary, title = R.string.bolus_perc_mid_title))
+                //    addPreference(AdaptiveIntPreference(ctx = context, intKey = IntKey.bolus_perc_late, dialogMessage = R.string.bolus_perc_late_summary, title = R.string.bolus_perc_late_title))
+
                 }
                 addPreference(BOLUSMAALTIJDINSTELLINGEN)
 
                 // 📈 FASE DETECTIE INSTELLINGEN
                 val FASEDETECTIEINSTELLINGEN = preferenceManager.createPreferenceScreen(context).apply {
                     key = "Bolus/Meal Settings"
-                    title = "\uD83D\uDCC8 FASE DETECTIE INSTELLINGEN"
+                    title = "\uD83D\uDCC8 EXTRA FASE DETECTIE INSTELLINGEN"
                     initialExpandedChildrenCount = Int.MAX_VALUE
 
                     addPreference(
@@ -680,12 +689,16 @@ open class OpenAPSFCLPlugin @Inject constructor(
                         )
                     )
 
-                    addPreference(AdaptiveDoublePreference(ctx = context, doubleKey = DoubleKey.phase_early_rise_slope, dialogMessage = R.string.phase_early_rise_slope_summary, title = R.string.phase_early_rise_slope_title))
-                    addPreference(AdaptiveDoublePreference(ctx = context, doubleKey = DoubleKey.phase_mid_rise_slope, dialogMessage = R.string.phase_mid_rise_slope_summary, title = R.string.phase_mid_rise_slope_title))
-                    addPreference(AdaptiveDoublePreference(ctx = context, doubleKey = DoubleKey.phase_late_rise_slope, dialogMessage = R.string.phase_late_rise_slope_summary, title = R.string.phase_late_rise_slope_title))
+
+
+                //    addPreference(AdaptiveDoublePreference(ctx = context, doubleKey = DoubleKey.phase_early_rise_slope, dialogMessage = R.string.phase_early_rise_slope_summary, title = R.string.phase_early_rise_slope_title))
+                //    addPreference(AdaptiveDoublePreference(ctx = context, doubleKey = DoubleKey.phase_mid_rise_slope, dialogMessage = R.string.phase_mid_rise_slope_summary, title = R.string.phase_mid_rise_slope_title))
+                //    addPreference(AdaptiveDoublePreference(ctx = context, doubleKey = DoubleKey.phase_late_rise_slope, dialogMessage = R.string.phase_late_rise_slope_summary, title = R.string.phase_late_rise_slope_title))
+                    addPreference(AdaptiveDoublePreference(ctx = context, doubleKey = DoubleKey.phase_min_consistency, dialogMessage = R.string.phase_min_consistency_summary, title = R.string.phase_min_consistency_title))
                     addPreference(AdaptiveDoublePreference(ctx = context, doubleKey = DoubleKey.phase_peak_slope, dialogMessage = R.string.phase_peak_slope_summary, title = R.string.phase_peak_slope_title))
                     addPreference(AdaptiveDoublePreference(ctx = context, doubleKey = DoubleKey.phase_early_rise_accel, dialogMessage = R.string.phase_early_rise_accel_summary, title = R.string.phase_early_rise_accel_title))
-                    addPreference(AdaptiveDoublePreference(ctx = context, doubleKey = DoubleKey.phase_min_consistency, dialogMessage = R.string.phase_min_consistency_summary, title = R.string.phase_min_consistency_title))
+                    addPreference(AdaptiveDoublePreference(ctx = context, doubleKey = DoubleKey.data_smoothing_alpha, dialogMessage = R.string.data_smoothing_alpha_summary, title = R.string.data_smoothing_alpha_title))
+                    addPreference(AdaptiveDoublePreference(ctx = context, doubleKey = DoubleKey.direction_consistency_threshold, dialogMessage = R.string.direction_consistency_threshold_summary, title = R.string.direction_consistency_threshold_title))
                 }
                 addPreference(FASEDETECTIEINSTELLINGEN)
 

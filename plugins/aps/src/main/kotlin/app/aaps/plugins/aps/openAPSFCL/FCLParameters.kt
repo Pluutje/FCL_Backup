@@ -56,6 +56,18 @@ class FCLParameters(private val preferences: Preferences) {
             impactLevel = "HIGH"
         ),
 
+        // ★★★ HYBRIDE BASAAL PARAMETER ★★★
+        ParameterDefinition(
+            key = IntKey.hybrid_basal_perc,
+            name = "Hybrid Basal Percentage",
+            category = "BOLUS",
+            minValue = 0.0,
+            maxValue = 100.0,
+            defaultValue = 0.0,
+            description = "Percentage van bolus dat als tijdelijke basaal wordt afgegeven",
+            impactLevel = "MEDIUM"
+        ),
+
         // ★★★ NIEUWE 2-FASE DETECTIE PARAMETERS ★★★
         ParameterDefinition(
             key = DoubleKey.phase_rising_slope,
@@ -164,6 +176,28 @@ class FCLParameters(private val preferences: Preferences) {
             impactLevel = "MEDIUM"
         ),
 
+        // ★★★ NIEUWE GEAvANCEERDE DETECTIE PARAMETERS ★★★
+        ParameterDefinition(
+            key = DoubleKey.data_smoothing_alpha,
+            name = "Data Smoothing Factor",
+            category = "PHASE_DETECTION",
+            minValue = 0.1,
+            maxValue = 0.8,
+            defaultValue = 0.4,
+            description = "Mate van gladmaken van ruis in BG data (0.1=gevoelig, 0.8=stabiel)",
+            impactLevel = "MEDIUM"
+        ),
+        ParameterDefinition(
+            key = DoubleKey.direction_consistency_threshold,
+            name = "Direction Consistency Threshold",
+            category = "PHASE_DETECTION",
+            minValue = 0.3,
+            maxValue = 0.9,
+            defaultValue = 0.7,
+            description = "Benodigde consistentie in trendrichting voor betrouwbare detectie",
+            impactLevel = "MEDIUM"
+        ),
+
         // ★★★ MAALTIJD PARAMETERS ★★★
         ParameterDefinition(
             key = IntKey.carb_percentage,
@@ -261,15 +295,22 @@ class FCLParameters(private val preferences: Preferences) {
         return when (technicalName) {
             "bolus_perc_rising" -> getParameterValue("Rising Phase Bolus %")
             "bolus_perc_plateau" -> getParameterValue("Plateau Phase Bolus %")
+            "hybrid_basal_perc" -> getParameterValue("Hybrid Basal Percentage")
             "phase_rising_slope" -> getParameterValue("Rising Phase Slope")
             "phase_plateau_slope" -> getParameterValue("Plateau Phase Slope")
             "bolus_perc_day" -> getParameterValue("Daytime Bolus %")
             "bolus_perc_night" -> getParameterValue("Nighttime Bolus %")
+            "dynamic_night_aggressiveness_threshold" -> getParameterValue("Nacht agressiviteit drempel")
             "meal_detection_sensitivity" -> getParameterValue("Meal Detection Sensitivity")
             "carb_percentage" -> getParameterValue("Carb Detection %")
             "peak_damping_percentage" -> getParameterValue("Peak Damping %")
             "hypo_risk_percentage" -> getParameterValue("Hypo Risk Bolus %")
             "IOB_corr_perc" -> getParameterValue("IOB Safety %")
+            "phase_peak_slope" -> getParameterValue("Peak Slope")
+            "phase_early_rise_accel" -> getParameterValue("Rising Phase Acceleration")
+            "phase_min_consistency" -> getParameterValue("Minimum Consistency")
+            "data_smoothing_alpha" -> getParameterValue("Data Smoothing Factor")
+            "direction_consistency_threshold" -> getParameterValue("Direction Consistency Threshold")
             else -> null
         }
     }
@@ -293,14 +334,14 @@ class FCLParameters(private val preferences: Preferences) {
         val highImpact = getHighImpactParameters()
 
         return buildString {
-            append("🎯 FCL PARAMETER OVERZICHT - 2-FASE SYSTEEM\n")
-            append("═══════════════════════════════════════\n")
+            append("🎯 FCL PARAMETER OVERZICHT\n")
+            append("════════════════════════════\n")
             append("• Totaal parameters: ${getAllParameters().size}\n")
             append("• Hoog impact parameters: ${highImpact.size}\n\n")
 
             append("🚀 2-FASE BOLUS PARAMETERS:\n")
             getParametersByCategory("BOLUS").filter {
-                it.key.contains("Rising") || it.key.contains("Plateau")
+                it.key.contains("Rising") || it.key.contains("Plateau") || it.key.contains("Hybrid")
             }.forEach { (name, value) ->
                 val formattedValue = formatParameterValue(value.current, value.definition)
                 append("  📈 $name: $formattedValue\n")
@@ -336,24 +377,37 @@ class FCLParameters(private val preferences: Preferences) {
                 append("  ⚠️ $name: $formattedValue\n")
                 append("     ${value.definition.description}\n\n")
             }
+
+            append("💡 TIPS:\n")
+            append("• Begin met standaard waarden voor 2-fasen systeem\n")
+            append("• Pas eerst basis agressiviteit aan (Dag/Nacht %)\n")
+            append("• Gebruik hybride basaal voor stabielere BG na maaltijden\n")
+            append("• Fase detectie parameters staan meestal goed afgesteld\n")
         }
     }
 
-    private fun formatParameterValue(value: Double, definition: FCLParameters.ParameterDefinition): String {
+    private fun formatParameterValue(value: Double, definition: ParameterDefinition): String {
         return when (definition.key) {
-            is IntKey -> "${value.toInt()}%" // Toon als percentage voor IntKey parameters
+            is IntKey -> {
+                when {
+                    definition.name.contains("%") -> "${value.toInt()}%"
+                    definition.name.contains("Time") -> "${value.toInt()} min"
+                    else -> "${value.toInt()}"
+                }
+            }
             is DoubleKey -> {
                 when {
                     definition.name.contains("Slope", ignoreCase = true) -> "%.1f mmol/L/uur".format(value)
                     definition.name.contains("Sensitivity", ignoreCase = true) -> "%.2f mmol/L/5min".format(value)
-                    else -> "%.2f".format(value) // Standaard 2 decimalen
+                    definition.name.contains("Acceleration", ignoreCase = true) -> "%.2f".format(value)
+                    definition.name.contains("Consistency", ignoreCase = true) -> "%.1f".format(value)
+                    definition.name.contains("Smoothing", ignoreCase = true) -> "%.1f".format(value)
+                    else -> "%.2f".format(value)
                 }
             }
-            else -> "%.2f".format(value) // fallback
+            else -> "%.2f".format(value)
         }
     }
-
-
 
     private fun round(value: Double, digits: Int): Double {
         val scale = Math.pow(10.0, digits.toDouble())

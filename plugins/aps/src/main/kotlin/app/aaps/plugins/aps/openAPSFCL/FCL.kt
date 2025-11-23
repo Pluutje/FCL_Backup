@@ -421,7 +421,6 @@ class FCL @Inject constructor(
         }
     }
 
-    // ★★★ UNIFORME CARB DETECTIE METHODE ★★★
     private fun calculateUnifiedCarbsDetection(
         historicalData: List<BGDataPoint>,
         robustTrends: RobustTrendAnalysis,
@@ -463,51 +462,59 @@ class FCL @Inject constructor(
         // 3. COB-gecorrigeerde detectie
         val cobAdjustedCarbs = calculateCOBAdjustedCarbs(unexplainedDelta, effectiveCR, mealDetectionSensitivity)
 
-        // ★★★ BESLISSINGSLOGICA - VERBETERDE VROEGE DETECTIE ★★★
-        val earlyRiseThreshold = 0.25
-        val moderateRiseThreshold = 0.5
+        // ★★★ VERBETERDE BESLISSINGSLOGICA - LAGERE DREMPELS ★★★
+        val earlyRiseThreshold = 0.15  // ← VERLAAGD van 0.25
+        val moderateRiseThreshold = 0.3  // ← VERLAAGD van 0.5
+        val veryEarlyRiseThreshold = 0.08  // ← NIEUW: voor zeer vroege detectie
 
         when {
             // Zeer sterke stijging - prioriteit 1
-            slope10 > 5.0 -> {
-                detectedCarbs = slope10 * 12.0
+            slope10 > 4.0 -> {  // ← VERLAAGD van 5.0
+                detectedCarbs = slope10 * 15.0  // ← VERHOOGD van 12.0
                 detectionReason = "Rapid rise detection: slope=${"%.1f".format(slope10)} mmol/L/h"
-                confidence = 0.8
+                confidence = 0.9  // ← VERHOOGD van 0.8
             }
 
             // Hoge wiskundige carbs met goede consistentie - prioriteit 2
-            mathCarbs > 20.0 && robustTrends.consistency > 0.6 -> {
+            mathCarbs > 15.0 && robustTrends.consistency > 0.5 -> {  // ← VERLAAGD van 20.0 en 0.6
                 detectedCarbs = mathCarbs
                 detectionReason = "Mathematical detection: ${robustTrends.phase}, slope=${"%.1f".format(robustTrends.firstDerivative)}"
                 confidence = robustTrends.consistency
             }
 
+            // ZEER VROEGE STIJGING - NIEUWE CATEGORIE
+            slope10 > veryEarlyRiseThreshold && currentBG > targetBG + 0.1 && robustTrends.consistency > 0.2 -> {
+                detectedCarbs = slope10 * 8.0
+                detectionReason = "Very early rise detection: slope=${"%.1f".format(slope10)} mmol/L/h"
+                confidence = 0.5
+            }
+
             // VROEGE STIJGING DETECTIE - LAGERE DREMPEL
-            slope10 > moderateRiseThreshold && currentBG > targetBG + 0.5 && robustTrends.consistency > 0.3 -> {
-                detectedCarbs = slope10 * 10.0
+            slope10 > earlyRiseThreshold && currentBG > targetBG + 0.3 && robustTrends.consistency > 0.3 -> {
+                detectedCarbs = slope10 * 12.0  // ← VERHOOGD van 10.0
                 detectionReason = "Early rise detection: slope=${"%.1f".format(slope10)} mmol/L/h"
-                confidence = 0.6
+                confidence = 0.7  // ← VERHOOGD van 0.6
             }
 
             // Onverklaarde stijging boven drempel - prioriteit 4
-            unexplainedDelta > mealDetectionSensitivity * 0.5 -> {
+            unexplainedDelta > mealDetectionSensitivity * 0.3 -> {  // ← VERLAAGD van 0.5
                 detectedCarbs = cobAdjustedCarbs
                 detectionReason = "Unexplained rise: ${"%.1f".format(unexplainedDelta)} mmol/L"
                 confidence = 0.6
             }
 
             // ZEER VROEGE STIJGING BIJ CONSISTENT PATROON
-            historicalData.size >= 4 && hasRecentRise(historicalData, 2) && currentBG > targetBG + 0.8 -> {
-                detectedCarbs = 15.0 + (slope10 * 5.0)
+            historicalData.size >= 3 && hasRecentRise(historicalData, 2) && currentBG > targetBG + 0.5 -> {  // ← VERLAAGD van 0.8
+                detectedCarbs = 20.0 + (slope10 * 6.0)  // ← VERHOOGD van 15.0 + 5.0
                 detectionReason = "Very early consistent rise pattern"
-                confidence = 0.5
+                confidence = 0.6  // ← VERHOOGD van 0.5
             }
 
             // Matige stijging met consistente trend - prioriteit 6
-            slope10 > earlyRiseThreshold && currentBG > targetBG + 0.3 && robustTrends.consistency > 0.4 -> {
-                detectedCarbs = slope10 * 8.0
+            slope10 > moderateRiseThreshold && currentBG > targetBG + 0.2 && robustTrends.consistency > 0.4 -> {  // ← VERLAAGD van 0.3
+                detectedCarbs = slope10 * 10.0  // ← VERHOOGD van 8.0
                 detectionReason = "Moderate rise with consistent trend"
-                confidence = 0.5
+                confidence = 0.6  // ← VERHOOGD van 0.5
             }
 
             else -> {
@@ -517,13 +524,14 @@ class FCL @Inject constructor(
             }
         }
 
-        // ★★★ IOB-BASED REDUCTIE ★★★
+        // ★★★ IOB-BASED REDUCTIE - MINDER RESTRICTIEF ★★★
         val iobRatio = currentIOB / maxIOB
         val iobCarbReduction = when {
-            iobRatio > 0.8 -> 0.3
-            iobRatio > 0.6 -> 0.5
-            iobRatio > 0.4 -> 0.7
-            iobRatio > 0.2 -> 0.85
+            iobRatio > 0.9 -> 0.4  // ← VERHOOGD van 0.3
+            iobRatio > 0.7 -> 0.6  // ← VERHOOGD van 0.5
+            iobRatio > 0.5 -> 0.75 // ← VERHOOGD van 0.7
+            iobRatio > 0.3 -> 0.85 // ← VERHOOGD van 0.85
+            iobRatio > 0.1 -> 0.95 // ← NIEUW
             else -> 1.0
         }
 
@@ -534,9 +542,10 @@ class FCL @Inject constructor(
 
         // ★★★ DYNAMISCHE CARB MULTIPLIER VOOR GROTE MAALTIJDEN ★★★
         val dynamicMealMultiplier = when {
-            initialDetectedCarbs > 80 -> 1.4
-            initialDetectedCarbs > 60 -> 1.3
-            initialDetectedCarbs > 40 -> 1.2
+            initialDetectedCarbs > 80 -> 1.6  // ← VERHOOGD van 1.4
+            initialDetectedCarbs > 60 -> 1.5  // ← VERHOOGD van 1.3
+            initialDetectedCarbs > 40 -> 1.4  // ← VERHOOGD van 1.2
+            initialDetectedCarbs > 20 -> 1.2  // ← NIEUW
             else -> 1.0
         }
 
@@ -547,20 +556,22 @@ class FCL @Inject constructor(
         detectedCarbs *= combinedMultiplier
 
         // ★★★ DEBUG INFO VOOR DYNAMISCHE CARBS ★★★
-        if (initialDetectedCarbs > 40) {
-            detectionReason += " | DynMult:${dynamicMealMultiplier}x Param:${(baseCarbPercentage * 100).toInt()}%"
+        if (initialDetectedCarbs > 15) {
+            detectionReason += " | DynMult:${dynamicMealMultiplier}x Param:${(baseCarbPercentage * 100).toInt()}% IOB-red:${(iobCarbReduction * 100).toInt()}%"
         }
 
         // ★★★ CONFIDENCE AFSTEMMING ★★★
         confidence *= when {
-            detectedCarbs > 30.0 -> 0.9
-            detectedCarbs > 20.0 -> 0.8
-            detectedCarbs > 10.0 -> 0.7
-            else -> 0.5
+            detectedCarbs > 25.0 -> 0.95  // ← VERHOOGD
+            detectedCarbs > 15.0 -> 0.85  // ← VERHOOGD
+            detectedCarbs > 8.0 -> 0.75   // ← VERHOOGD
+            else -> 0.6                   // ← VERHOOGD
         }
+
         if (iobCarbReduction < 1.0) {
             detectionReason += " (IOB reduced: ${(iobCarbReduction * 100).toInt()}%)"
         }
+
         return UnifiedCarbsResult(detectedCarbs, detectionReason, confidence)
     }
 
@@ -1535,7 +1546,6 @@ class FCL @Inject constructor(
         return 0.0
     }
 
-    // ★★★ VERVANG DEZE FUNCTIE - VERBETERDE 2-FASEN DETECTIE ★★★
     private fun calculateEnhancedPhaseDetection(
         robustTrends: RobustTrendAnalysis,
         historicalData: List<BGDataPoint>,
@@ -1550,19 +1560,19 @@ class FCL @Inject constructor(
         val slopes = calculateSlopeHistory(recentData)
         val currentSlope = robustTrends.firstDerivative
 
-        // ★★★ NIEUWE 2-FASEN LOGICA ★★★
-        val risingSlopeThreshold = preferences.get(DoubleKey.phase_rising_slope)
-        val plateauSlopeThreshold = preferences.get(DoubleKey.phase_plateau_slope)
+        // ★★★ VERLAAGDE DREMPELS VOOR SNELLERE FASE DETECTIE ★★★
+        val risingSlopeThreshold = 0.8  // ← VERLAAGD van standaard waarde
+        val plateauSlopeThreshold = 0.2  // ← VERLAAGD van standaard waarde
 
         val proposedPhase = when {
-            // Stijgende fase: duidelijke positieve trend
+            // Stijgende fase: lagere drempel
             currentSlope > risingSlopeThreshold -> "rising"
 
-            // Plateau fase: minimale beweging
+            // Plateau fase: kleinere range
             abs(currentSlope) <= plateauSlopeThreshold -> "plateau"
 
-            // Dalende fase: negatieve trend
-            currentSlope < -plateauSlopeThreshold -> "declining"
+            // Dalende fase: hogere drempel om valse detectie te voorkomen
+            currentSlope < -1.0 -> "declining"  // ← VERHOOGD van -plateauSlopeThreshold
 
             // Standback: gebaseerd op consistentie
             else -> when {
@@ -1572,10 +1582,15 @@ class FCL @Inject constructor(
             }
         }
 
-        // ★★★ EENVOUDIGERE OVERGANGSLOGICA ★★★
-        val transitionFactor = calculateSimpleTransitionFactor(previousPhase, proposedPhase, currentSlope)
+        // ★★★ SNELLERE OVERGANGSLOGICA ★★★
+        val transitionFactor = when {
+            currentSlope > 3.0 -> 1.0  // Onmiddellijke overgang
+            currentSlope > 2.0 -> 0.9  // Zeer snelle overgang
+            currentSlope > 1.0 -> 0.8  // Snelle overgang
+            else -> 0.7
+        }
 
-        val debugInfo = "2-Fase: $previousPhase → $proposedPhase (slope: ${"%.2f".format(currentSlope)})"
+        val debugInfo = "2-Fase: $previousPhase → $proposedPhase (slope: ${"%.2f".format(currentSlope)}, factor: $transitionFactor)"
         return PhaseTransitionResult(proposedPhase, transitionFactor, debugInfo)
     }
 
@@ -1857,33 +1872,35 @@ class FCL @Inject constructor(
         return changes.average()
     }
 
-    // ★★★ VERBETERDE DYNAMISCHE IOB CAP MET MAALTIJD CONTEXT ★★★
     private fun calculateDynamicIOBCap(
         currentIOB: Double,
         maxIOB: Double,
         slope: Double,
-        detectedCarbs: Double = 0.0, // ★★★ NIEUW: maaltijd context
+        detectedCarbs: Double = 0.0,
         mealDetected: Boolean = false
     ): Double {
 
         // ★★★ VERHOOGDE IOB CAP TIJDENS MAALTIJDEN ★★★
-        if (mealDetected && detectedCarbs > 20) {
+        if (mealDetected && detectedCarbs > 15) {
             val mealBoost = when {
-                detectedCarbs > 80 -> 1.5  // Extreem grote maaltijd
-                detectedCarbs > 60 -> 1.4  // Zeer grote maaltijd
-                detectedCarbs > 40 -> 1.3  // Grote maaltijd
-                detectedCarbs > 20 -> 1.2  // Medium maaltijd
-                else -> 1.1                // Kleine maaltijd
+                detectedCarbs > 80 -> 2.2  // ← VERHOOGD van 1.5
+                detectedCarbs > 60 -> 2.0  // ← VERHOOGD van 1.4
+                detectedCarbs > 40 -> 1.8  // ← VERHOOGD van 1.3
+                detectedCarbs > 20 -> 1.6  // ← VERHOOGD van 1.2
+                else -> 1.4                // ← VERHOOGD van 1.1
             }
             return maxIOB * mealBoost
         }
 
-        // ★★★ BESTAANDE NON-MEAL LOGIC (behouden) ★★★
-        val correction = preferences.get(IntKey.tau_absorption_minutes)/100.0
+        // ★★★ VERHOOGDE IOB CAP BIJ STIJGENDE GLUCOSE ★★★
+        val baseMaxIOB = maxIOB
         return when {
-            slope > 6.5 -> maxIOB * correction * 1.1
-            slope > 4.0 -> maxIOB * correction
-            else -> maxIOB
+            slope > 8.0 -> baseMaxIOB * 2.0  // ← NIEUW: extreme stijging
+            slope > 6.0 -> baseMaxIOB * 1.8  // ← VERHOOGD
+            slope > 4.0 -> baseMaxIOB * 1.6  // ← VERHOOGD
+            slope > 2.0 -> baseMaxIOB * 1.4  // ← NIEUW: matige stijging
+            slope > 1.0 -> baseMaxIOB * 1.2  // ← NIEUW: lichte stijging
+            else -> baseMaxIOB
         }
     }
 
@@ -2046,26 +2063,28 @@ class FCL @Inject constructor(
     ): Double {
         val hours = minutesAhead / 60.0
 
-        // ★★★ MORE REALISTIC INSULIN EFFECT ★★★
-        val insulinEffect = currentIOB * effectiveISF * (1 - exp(-hours / 3.0)) // Reduced from 4.0
+        // ★★★ MEER REALISTISCHE INSULINE EFFECT ★★★
+        val insulinEffect = currentIOB * effectiveISF * (1 - exp(-hours / 2.0)) // ← VERKORT van 3.0
 
-        // ★★★ IMPROVED CARB EFFECT ESTIMATION ★★★
-        val carbAbsorptionRate = 0.035 // Increased from 0.025 (faster carb absorption)
+        // ★★★ VERBETERDE CARB ABSORPTIE ★★★
+        val carbAbsorptionRate = 0.05  // ← VERHOOGD van 0.035
         val carbEffect = carbsOnBoard * carbAbsorptionRate * hours
 
-        // ★★★ TREND EFFECT WITH DAMPENING ★★★
-        val trendEffect = currentSlope * hours * 0.7 // Dampen trend effect
+        // ★★★ TREND EFFECT MET COB COMPENSATIE ★★★
+        val trendEffect = currentSlope * hours * 0.9  // ← VERMINDERDE DEMPING van 0.7
 
         val predictedBG = currentBG - insulinEffect + carbEffect + trendEffect
 
-        // ★★★ HIGHER SAFETY MARGINS DURING MEALS ★★★
+        // ★★★ LAGERE VEILIGHEIDSRANDEN TIJDENS MAALTIJDEN ★★★
         val mealTimeMinBG = when {
-            detectedCarbs > 40 -> 4.5  // Increased from 4.2
-            detectedCarbs > 20 -> 4.3  // Increased from 4.0
-            else -> 4.0                // Increased from 3.8
+            detectedCarbs > 40 -> 3.8  // ← VERLAAGD van 4.5
+            detectedCarbs > 20 -> 3.6  // ← VERLAAGD van 4.3
+            detectedCarbs > 10 -> 3.5  // ← NIEUW
+            else -> 3.4                // ← VERLAAGD van 4.0
         }
 
-        return predictedBG.coerceAtLeast(mealTimeMinBG)
+        // ★★★ EXTRA VEILIGHEID: VOORKOM TE LAGE VOORSPELLINGEN ★★★
+        return predictedBG.coerceAtLeast(mealTimeMinBG).coerceAtMost(20.0)
     }
 
 
@@ -2120,16 +2139,16 @@ private fun shouldStopInsulinDelivery(
         maxIOB: Double
     ): Boolean {
 
-        // ★★★ MINDER RESTRICTIEF BIJ HOGE BG ★★★
-        if (currentBG > 10.0) {
-            return false // Nooit stoppen bij zeer hoge BG
+        // ★★★ MINDER RESTRICTIEF BIJ HOGE BG + MAALTIJD ★★★
+        if (currentBG > 9.0 && detectedCarbs > 20) {
+            return false // NOOIT STOPPEN BIJ HOGE BG + GROTE MAALTIJD
         }
 
-        if (currentBG > 8.0 && currentSlope > 1.0) {
-            return false // Doorlopende stijging, niet stoppen
+        if (currentBG > 8.0 && currentSlope > 0.5 && detectedCarbs > 10) {
+            return false // DOORLOPEN BIJ STIJGENDE TREND + MAALTIJD
         }
 
-        // Originele hypo prediction logica behouden voor lagere BG
+        // ★★★ ALLEEN STOPPEN BIJ SIGNIFICANT HYPO RISICO ★★★
         val predictedBG = predictHypoRiskWithMealContext(
             currentBG = currentBG,
             currentIOB = currentIOB,
@@ -2141,14 +2160,18 @@ private fun shouldStopInsulinDelivery(
         )
 
         val mealHypoThreshold = when {
-            detectedCarbs > 60 -> 4.2
-            detectedCarbs > 40 -> 4.1
-            detectedCarbs > 20 -> 4.0
-            else -> 3.8
+            detectedCarbs > 40 -> 3.5  // ← VERLAAGD van 4.2
+            detectedCarbs > 20 -> 3.4  // ← VERLAAGD van 4.1
+            detectedCarbs > 10 -> 3.3  // ← NIEUW
+            else -> 3.2                // ← VERLAAGD van 3.8
         }
 
-        // Alleen stoppen bij significant hypo risico
-        return predictedBG < mealHypoThreshold && currentSlope < -3.0
+        // ★★★ STRENGERE VOORWAARDEN VOOR STOPPEN ★★★
+        val shouldStop = predictedBG < mealHypoThreshold &&
+            currentSlope < -2.0 &&  // ← VERLAAGD van -3.0
+            currentIOB > maxIOB * 0.8  // ← NIEUW: alleen bij hoge IOB
+
+        return shouldStop
     }
 
     private fun shouldAllowInsulinForHighBG(
@@ -2761,14 +2784,34 @@ private fun shouldStopInsulinDelivery(
         }
     }
 
-    // ★★★ PUBLIC FUNCTIE VOOR FCLMETRIKS OM GEWICHT OP TE HALEN ★★★
+    // ★★★ VERVANG DEZE FUNCTIE IN FCL.kt ★★★
     fun getOptimizationWeightForMeal(mealStartTime: DateTime): Double {
         return try {
-            getEnhancedMealMetrics().find { enhancedMeal ->
+            val enhancedMeal = getEnhancedMealMetrics().find { enhancedMeal ->
                 Minutes.minutesBetween(enhancedMeal.baseMetrics.mealStartTime, mealStartTime).minutes < 10
-            }?.optimizationWeight ?: 1.0
+            }
+
+            // ★★★ NIEUWE LOGICA: Alleen verlagen bij ECHTE preventieve carbs ★★★
+            val weight = when {
+                enhancedMeal?.preventiveCarbs?.detected == true -> {
+                    when (enhancedMeal.preventiveCarbs.confidence) {
+                        in 0.8..1.0 -> 0.3  // Zeer zeker preventief
+                        in 0.5..0.8 -> 0.6  // Waarschijnlijk preventief
+                        else -> 0.8          // Onzeker - bijna vol gewicht
+                    }
+                }
+                else -> 1.0 // STANDAARD: Vol gewicht voor normale maaltijden
+            }
+
+            // ★★★ DEBUG INFO VOOR UI ★★★
+            val debugInfo = "🔧 OPTIMIZATION WEIGHT: $weight (preventief: ${enhancedMeal?.preventiveCarbs?.detected ?: false}, confidence: ${enhancedMeal?.preventiveCarbs?.confidence ?: 0.0})"
+            // Deze debug info kun je tonen in je UI via getFCLStatus()
+            currentStappenLog += "\n$debugInfo"
+
+            weight
         } catch (e: Exception) {
-            1.0 // Fallback naar vol gewicht bij fouten
+            currentStappenLog += "\n❌ OPTIMIZATION WEIGHT FOUT: ${e.message}"
+            1.0 // Fallback naar vol gewicht
         }
     }
 
@@ -2799,23 +2842,36 @@ private fun shouldStopInsulinDelivery(
         // ★★★ VERHOOGDE BASIS BEREKENING ★★★
         val totalCarbBolus = detectedCarbs / effectiveCR
 
-        // ★★★ DYNAMISCHE BOOST FACTOR ★★★
+        // ★★★ VERBETERDE DYNAMISCHE BOOST FACTOR ★★★
         val bgBoostFactor = when {
-            currentBG > 11.0 -> 1.4
-            currentBG > 10.0 -> 1.3
-            currentBG > 9.0 -> 1.2
-            currentBG > 8.0 -> 1.1
+            currentBG > 12.0 -> 1.6  // ← VERHOOGD
+            currentBG > 11.0 -> 1.5  // ← VERHOOGD
+            currentBG > 10.0 -> 1.4  // ← VERHOOGD
+            currentBG > 9.0 -> 1.3   // ← VERHOOGD
+            currentBG > 8.0 -> 1.2   // ← VERHOOGD
+            currentBG > 7.0 -> 1.1   // ← NIEUW
+            currentBG < 5.0 -> 1.3   // ← NIEUW: boost bij lage start-BG
+            currentBG < 6.0 -> 1.2   // ← NIEUW: boost bij lage start-BG
             else -> 1.0
         }
 
         val slopeBoostFactor = when {
-            robustTrends.firstDerivative > 6.0 -> 1.3
-            robustTrends.firstDerivative > 4.0 -> 1.2
-            robustTrends.firstDerivative > 2.0 -> 1.1
+            robustTrends.firstDerivative > 6.0 -> 1.5  // ← VERHOOGD
+            robustTrends.firstDerivative > 4.0 -> 1.4  // ← VERHOOGD
+            robustTrends.firstDerivative > 2.0 -> 1.3  // ← VERHOOGD
+            robustTrends.firstDerivative > 1.0 -> 1.2  // ← NIEUW
             else -> 1.0
         }
 
-        val totalBoost = bgBoostFactor * slopeBoostFactor
+        // ★★★ CONSISTENTIE BOOST ★★★
+        val consistencyBoost = when (robustTrends.consistency) {
+            in 0.9..1.0 -> 1.3
+            in 0.7..0.9 -> 1.2
+            in 0.5..0.7 -> 1.1
+            else -> 1.0
+        }
+
+        val totalBoost = bgBoostFactor * slopeBoostFactor * consistencyBoost
         val boostedTotalCarbBolus = totalCarbBolus * totalBoost
 
         val immediateBolus = boostedTotalCarbBolus * mathAdvice.immediatePercentage
@@ -5034,7 +5090,7 @@ $recentMealsDisplay"""
 
         return """
 ╔═══════════════════
-║  ══ FCL v5.6.0 ══ 
+║  ══ FCL v5.8.0 ══ 
 ╚═══════════════════
 
 🎯 LAATSTE BOLUS BESLISSING

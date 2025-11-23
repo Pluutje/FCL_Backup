@@ -551,18 +551,31 @@ class FCLMetrics(private val context: Context, private val preferences: Preferen
         integrateOptimizationAdvice(finalAdvice, session, optimizationWeight)
     }
 
+    // ★★★ ALTERNATIEVE SIMPELE VERSIE ★★★
     private fun integrateOptimizationAdvice(advice: List<ParameterAdvice>, session: MealOptimizationSession, optimizationWeight: Double) {
+
         advice.forEach { newAdvice ->
-            // ★★★ PAS CONFIDENCE AAN OP BASIS VAN GEWICHT ★★★
-            val adjustedAdvice = if (optimizationWeight < 0.8) {
-                newAdvice.copy(
-                    confidence = newAdvice.confidence * optimizationWeight,
-                    reason = "${newAdvice.reason} (preventieve carbs gedetecteerd: ${(optimizationWeight * 100).toInt()}% gewicht)"
-                )
+            val adjustedConfidence = newAdvice.confidence * optimizationWeight
+
+            // ★★★ VERHOOG CONFIDENCE BIJ LAGE WEIGHTS ★★★
+            val finalConfidence = if (optimizationWeight < 0.5) {
+                adjustedConfidence * 2.0 // Compenseer voor lage weights
             } else {
-                newAdvice
+                adjustedConfidence
+            }.coerceAtMost(1.0)
+
+            val adjustedAdvice = newAdvice.copy(
+                confidence = finalConfidence,
+                reason = if (optimizationWeight < 1.0) {
+                    "${newAdvice.reason} (aangepast gewicht: ${(optimizationWeight * 100).toInt()}%)"
+                } else {
+                    newAdvice.reason
+                }
+            )
+
+            if (adjustedAdvice.confidence >= 0.1) {
+                updateParameterAdviceInBackground(adjustedAdvice)
             }
-            updateParameterAdviceInBackground(adjustedAdvice)
         }
     }
 
@@ -838,10 +851,14 @@ class FCLMetrics(private val context: Context, private val preferences: Preferen
 
     }
 
-    // ★★★ VERBETERDE FALLBACK ADVIES FUNCTIE ★★★
+    // ★★★ VERVANG DEZE FUNCTIE IN FCLMetrics.kt ★★★
     private fun generateFallbackAdvice(): List<ParameterAdvice> {
         val currentParams = parameterHistory.getCurrentParameterSnapshot()
         val advice = mutableListOf<ParameterAdvice>()
+
+        // ★★★ DEBUG MESSAGE ★★★
+        val debugMessage = "🔧 GENEREER FALLBACK ADVIES - huidige params: rising=${currentParams.bolusPercRising}, plateau=${currentParams.bolusPercPlateau}"
+        // Deze kun je tonen in getOptimizationStatus()
 
         // ★★★ ALTIJD TENMINSTE 1 ADVIES GENEREREN ★★★
         advice.add(
@@ -850,7 +867,7 @@ class FCLMetrics(private val context: Context, private val preferences: Preferen
                 currentValue = currentParams.bolusPercRising,
                 recommendedValue = (currentParams.bolusPercRising * 1.05).coerceAtMost(150.0),
                 reason = "Standaard test advies - wacht op maaltijd data voor gepersonaliseerd advies",
-                confidence = 0.25, // ★★★ VERHOOGDE CONFIDENCE VOOR TESTEN ★★★
+                confidence = 0.4, // ★★★ VERHOOGD van 0.25 ★★★
                 direction = "INCREASE"
             )
         )
@@ -863,7 +880,7 @@ class FCLMetrics(private val context: Context, private val preferences: Preferen
                     currentValue = currentParams.mealDetectionSensitivity,
                     recommendedValue = (currentParams.mealDetectionSensitivity * 0.95).coerceAtLeast(0.1),
                     reason = "Optimalisatie loop - verfijning detectie gevoeligheid",
-                    confidence = 0.15,
+                    confidence = 0.2, // ★★★ VERHOOGD van 0.15 ★★★
                     direction = "DECREASE"
                 )
             )
@@ -940,6 +957,7 @@ class FCLMetrics(private val context: Context, private val preferences: Preferen
         optimizationController.onNewBGReading(currentBG, currentIOB, context)
     }
 
+    // ★★★ VERVANG DEZE COMPLETE FUNCTIE IN FCLMetrics.kt ★★★
     fun getOptimizationStatus(): String {
         return try {
             val summaries = getParameterAdviceSummary()
@@ -950,7 +968,24 @@ class FCLMetrics(private val context: Context, private val preferences: Preferen
                 append("🔧 PARAMETER OPTIMALISATIE DEBUG OVERZICHT\n")
                 append("═══════════════════════════════════════\n")
 
-                // ★★★ UITGEBREIDE DEBUG INFO ★★★
+                // ★★★ NIEUW: OPTIMIZATION WEIGHT ANALYSE ★★★
+                append("🎯 OPTIMIZATION WEIGHT ANALYSE:\n")
+                if (activeSessions.isEmpty()) {
+                    append("• Geen actieve sessies\n")
+                } else {
+                    activeSessions.take(3).forEach { session ->
+                        val weight = getOptimizationWeightForMeal(session.startTime)
+                        val weightStatus = when {
+                            weight >= 0.8 -> "✅ HOOG"
+                            weight >= 0.5 -> "🟡 MEDIUM"
+                            weight > 0.0 -> "🟠 LAAG"
+                            else -> "❌ NUL"
+                        }
+                        append("• ${formatMealId(session.mealId)}: $weightStatus ($weight)\n")
+                    }
+                }
+
+                // ★★★ BESTAANDE CODE - BLIJFT HETZELFDE ★★★
                 append("📊 DATA ANALYSE:\n")
                 append("• Totaal maaltijden geanalyseerd: ${calculateMealPerformanceMetrics(168).size}\n")
                 append("• CSV datapunten beschikbaar: ${loadCSVData(24).size}\n")
@@ -1044,6 +1079,15 @@ class FCLMetrics(private val context: Context, private val preferences: Preferen
         }
     }
 
+    // ★★★ VOEG DEZE HELPER FUNCTIE TOE IN FCLMetrics.kt ★★★
+    private fun getOptimizationWeightForMeal(mealStartTime: DateTime): Double {
+        return try {
+            fclReference?.getOptimizationWeightForMeal(mealStartTime) ?: 1.0
+        } catch (e: Exception) {
+            1.0 // Fallback naar vol gewicht bij fouten
+        }
+    }
+
     // ★★★ DEBUG FUNCTIE VOOR ADVIES GENERATIE ★★★
     fun debugAdviceGeneration(): String {
         val summaries = getParameterAdviceSummary()
@@ -1072,7 +1116,8 @@ class FCLMetrics(private val context: Context, private val preferences: Preferen
 
             append("\n🔄 OPTIMALISATIE STATUS:\n")
             activeSessions.take(3).forEach { session ->
-                append("  - ${session.mealId}: ${session.dataPoints.size} punten\n")
+                val leesbaarMealId = formatMealId(session.mealId)
+                append("  - ${leesbaarMealId}: ${session.dataPoints.size} punten\n")
             }
 
             if (recentMeals.isNotEmpty()) {
@@ -1084,7 +1129,7 @@ class FCLMetrics(private val context: Context, private val preferences: Preferen
         }
     }
 
-    // ★★★ FORCEER ADVIES UPDATE FUNCTIE ★★★
+
     // ★★★ AUTOMATISCHE FORCE UPDATE FUNCTIE ★★★
     fun forceParameterAdviceUpdate(): List<ParameterAdviceSummary> {
         try {
@@ -2366,13 +2411,14 @@ class FCLMetrics(private val context: Context, private val preferences: Preferen
 
 
 
+    // ★★★ VERVANG DEZE FUNCTIE IN FCLMetrics.kt (rond regel 1470) ★★★
     private fun calculateParameterSummary(
         parameterName: String,
         currentAdvice: List<ParameterAgressivenessAdvice>
     ): ParameterAdviceSummary {
         val currentValue = getCurrentParameterValueFromPrefs(parameterName)
 
-        // ★★★ VERLAAGDE CONFIDENCE DREMPEL: 0.3 → 0.1 ★★★
+        // ★★★ VERLAAGDE CONFIDENCE DREMPEL: 0.1 → 0.05 ★★★
         val parameterAdvice = currentAdvice.find { it.parameterName == parameterName }
 
         val history = parameterHistories.getOrPut(parameterName) { EnhancedParameterHistory(parameterName) }
@@ -2388,8 +2434,8 @@ class FCLMetrics(private val context: Context, private val preferences: Preferen
         return ParameterAdviceSummary(
             parameterName = parameterName,
             currentValue = currentValue,
-            // ★★★ NIEUWE DREMPEL: 0.1 ★★★
-            lastAdvice = if (parameterAdvice != null && parameterAdvice.confidence > 0.1) parameterAdvice else null,
+            // ★★★ NIEUWE DREMPEL: 0.05 ★★★
+            lastAdvice = if (parameterAdvice != null && parameterAdvice.confidence > 0.05) parameterAdvice else null,
             weightedAverage = weightedAverage,
             confidence = parameterAdvice?.confidence ?: 0.0,
             trend = trend,

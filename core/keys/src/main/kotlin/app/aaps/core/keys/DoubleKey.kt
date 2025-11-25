@@ -57,7 +57,8 @@ enum class DoubleKey(
 
 
     stap_TT("stap_TT", 2.0,0.5,4.0),
-    max_bolus("max_bolus", 1.25,0.5,8.0),
+    max_bolus_day("max_bolus_day", 1.25,0.1,8.0),
+    max_bolus_night("max_bolus_night", 0.5,0.1,8.0),
     meal_detection_sensitivity("meal_detection_sensitivity", 0.35,0.1,0.5),
     CarbISF_min_Factor("CarbISF_min_Factor", 0.9,0.5,1.0),
     CarbISF_max_Factor("CarbISF_max_Factor", 1.1,1.0,2.5),

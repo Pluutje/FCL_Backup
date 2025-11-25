@@ -378,11 +378,11 @@ class FCLParameters(private val preferences: Preferences) {
                 append("     ${value.definition.description}\n\n")
             }
 
-            append("💡 TIPS:\n")
-            append("• Begin met standaard waarden voor 2-fasen systeem\n")
-            append("• Pas eerst basis agressiviteit aan (Dag/Nacht %)\n")
-            append("• Gebruik hybride basaal voor stabielere BG na maaltijden\n")
-            append("• Fase detectie parameters staan meestal goed afgesteld\n")
+         //   append("💡 TIPS:\n")
+         //   append("• Begin met standaard waarden voor 2-fasen systeem\n")
+         //   append("• Pas eerst basis agressiviteit aan (Dag/Nacht %)\n")
+         //   append("• Gebruik hybride basaal voor stabielere BG na maaltijden\n")
+         //   append("• Fase detectie parameters staan meestal goed afgesteld\n")
         }
     }
 

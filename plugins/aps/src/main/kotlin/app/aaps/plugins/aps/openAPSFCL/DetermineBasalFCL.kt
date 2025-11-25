@@ -277,10 +277,11 @@ class DetermineBasalFCL @Inject constructor(
                 currentData = currentData,
                 historicalData = historicalData,
                 currentISF = currentISF,
-                targetBG = target,
+            //    targetBG = target,
                 carbRatio = profile.carb_ratio,
                 currentIOB = currentIOB,
-                maxBolus = preferences.get(DoubleKey.max_bolus),
+            //    maxBolusDay = preferences.get(DoubleKey.max_bolus_day),
+            //    maxBolusNight = preferences.get(DoubleKey.max_bolus_night),
                 maxIOB = profile.max_iob,
             )
 
@@ -328,7 +329,8 @@ class DetermineBasalFCL @Inject constructor(
 
 
             // veiligheid
-            "max_bolus" to round(preferences.get(DoubleKey.max_bolus),2).toString(),
+            "max_bolus_day" to round(preferences.get(DoubleKey.max_bolus_day),2).toString(),
+            "max_bolus_night" to round(preferences.get(DoubleKey.max_bolus_night),2).toString(),
             "max_basaal" to round(preferences.get(DoubleKey.ApsMaxBasal),2).toString(),
             "max_IOB" to round(preferences.get(DoubleKey.ApsSmbMaxIob),2).toString(),
             "IOB_strongRise_perc" to preferences.get(IntKey.IOB_strongRise_perc).toString(),
@@ -981,7 +983,7 @@ class DetermineBasalFCL @Inject constructor(
             } else {
                 // STANDARD MODE: Alleen bolus
                 rT.reason.append("=> Bolus perc: ${preferences.get(IntKey.bolus_perc_day)} SMB:  $FCL_SMB eh ")
-                FCL_SMB = Math.min(preferences.get(DoubleKey.max_bolus),FCL_SMB)
+            //    FCL_SMB = Math.min(preferences.get(DoubleKey.max_bolus),FCL_SMB)
                 if (fclAdvice.detectedCarbs >99 ) {rT.rate = basal/2 } else {rT.rate = 0.0}
                 rT.units = FCL_SMB
             }

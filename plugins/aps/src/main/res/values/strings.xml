@@ -291,9 +291,9 @@
     <string name="bolus_perc_plateau_summary">Bolus percentage tijdens stabiele periode</string>
     <string name="bolus_perc_plateau_title">Plateau fase percentage  [%]</string>
     <string name="phase_rising_slope_summary">Minimale stijging om als "stijgende fase" te detecteren</string>
-    <string name="phase_rising_slope_title">Stijging drempel (0.5-5.0 mmol/L/uur)</string>
+    <string name="phase_rising_slope_title">Stijging drempel (0.3-3.0 mmol/L/uur)</string>
     <string name="phase_plateau_slope_summary">Maximale stijging/daling voor "plateau fase"</string>
-    <string name="phase_plateau_slope_title">Plateau drempel (0.1-1.0 mmol/L/uur)</string>
+    <string name="phase_plateau_slope_title">Plateau drempel (0.05-1.0 mmol/L/uur)</string>
 
 
 
@@ -317,10 +317,7 @@
     <string name="IOB_strongRise_perc_summary">Percentage for MaxIOB correction during strong rise during meal</string>
     <string name="IOB_strongRise_perc_title">MaxIOB correction during strong rise[%]</string>
 
-    <string name="peak_damping_percentage_summary">Vermindering bij BG piek om overcorrectie te voorkomen</string>
-    <string name="peak_damping_percentage_title">Peak damping percentage [%]</string>
-    <string name="hypo_risk_percentage_summary">extra Bolus Percentage correction when hypo risc is detected</string>
-    <string name="hypo_risk_percentage_title">Hypo risc percentage [%]</string>
+
     <string name="meal_detection_sensitivity_summary">Gevoeligheid maaltijd detectie. Lagere waarden: meer maaltijden detecteren (gevoeliger) Hogere waarden: minder maaltijden detecteren (strenger)"</string>
     <string name="meal_detection_sensitivity_title">Meal detection sensitivity [mmol/l per 5 min]</string>
     <string name="tau_absorption_minutes_summary">Gemiddelde tijd hoelang carbs “in het lichaam aanwezig blijven</string>
@@ -362,19 +359,13 @@
     <string name="MinDelay_resistentie_summary">Het aantal minuten (-60 tot + 120) waarmee de terugkijk tijd tov de huidige tijd wordt verschoven.</string>
     <string name="MinDelay_resistentie_title">Aantal minuten verschuiving</string>
 
-    <string name="dynamic_night_aggressiveness_threshold_summary">Minimale stijging (mmol/L/uur) om nachtagressiviteit te verhogen bij maaltijden</string>
-    <string name="dynamic_night_aggressiveness_threshold_title">Nacht agressiviteit drempel</string>
+
     <string name="enhanced_early_boost_perc_summary">•	Extra boost bij lage start-BG om late pieken te voorkomen (10% tot 100%)</string>
     <string name="enhanced_early_boost_perc_title">Extra vroege boost %</string>
-    <string name="min_minutes_between_bolus_summary">Minimale minuten tussen bolussen bij sterke stijginge.</string>
-    <string name="min_minutes_between_bolus_title">Minimale tijd tussen bolussen (agressief)</string>
+    <string name="min_minutes_between_bolus_summary">Minimale minuten tussen bolussen bij sterke stijging.</string>
+    <string name="min_minutes_between_bolus_title">Minimale tijd tussen 2 bolussen </string>
 
-    <!--    <string name="phase_early_rise_slope_summary"></string>
-        <string name="phase_early_rise_slope_title">Phase EarlyRise Slope</string>
-        <string name="phase_mid_rise_slope_summary"></string>
-        <string name="phase_mid_rise_slope_title">Phase MidRise Slope</string>
-        <string name="phase_late_rise_slope_summary"></string>
-        <string name="phase_late_rise_slope_title">Phase LateRise Slope</string>   -->
+
         <string name="phase_peak_slope_summary">Maximale helling om als piek te beschouwen. • Verhogen: Alleen duidelijke pieken → betere timing. •	Verlagen: Ook vlakke pieken → vroegere herkenning.</string>
         <string name="phase_peak_slope_title">Piek herkenning drempel </string>
         <string name="phase_early_rise_accel_summary">Minimale versnelling voor vroege fase detectie. •	Verhogen: Alleen sterke versnelling → betrouwbaardere detectie. • Verlagen: Ook lichte versnelling → gevoeligere respons.</string>

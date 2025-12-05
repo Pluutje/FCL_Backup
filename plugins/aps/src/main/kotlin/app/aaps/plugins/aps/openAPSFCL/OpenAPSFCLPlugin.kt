@@ -661,16 +661,12 @@ open class OpenAPSFCLPlugin @Inject constructor(
                     addPreference(AdaptiveDoublePreference(ctx = context, doubleKey = DoubleKey.phase_plateau_slope, dialogMessage = R.string.phase_plateau_slope_summary, title = R.string.phase_plateau_slope_title))
                     addPreference(AdaptiveIntPreference(ctx = context, intKey = IntKey.bolus_perc_rising, dialogMessage = R.string.bolus_perc_rising_summary, title = R.string.bolus_perc_rising_title))
                     addPreference(AdaptiveIntPreference(ctx = context, intKey = IntKey.bolus_perc_plateau, dialogMessage = R.string.bolus_perc_plateau_summary, title = R.string.bolus_perc_plateau_title))
-                    addPreference(AdaptiveDoublePreference(ctx = context, doubleKey = DoubleKey.dynamic_night_aggressiveness_threshold, dialogMessage = R.string.dynamic_night_aggressiveness_threshold_summary, title = R.string.dynamic_night_aggressiveness_threshold_title))
-                    addPreference(AdaptiveIntPreference(ctx = context, intKey = IntKey.enhanced_early_boost_perc, dialogMessage = R.string.enhanced_early_boost_perc_summary, title = R.string.enhanced_early_boost_perc_title))
-                    addPreference(AdaptiveIntPreference(ctx = context, intKey = IntKey.peak_damping_percentage, dialogMessage = R.string.peak_damping_percentage_summary, title = R.string.peak_damping_percentage_title))
-                    addPreference(AdaptiveIntPreference(ctx = context, intKey = IntKey.hypo_risk_percentage, dialogMessage = R.string.hypo_risk_percentage_summary, title = R.string.hypo_risk_percentage_title))
+
+                 //   addPreference(AdaptiveIntPreference(ctx = context, intKey = IntKey.enhanced_early_boost_perc, dialogMessage = R.string.enhanced_early_boost_perc_summary, title = R.string.enhanced_early_boost_perc_title))
+
                     addPreference(AdaptiveIntPreference(ctx = context, intKey = IntKey.min_minutes_between_bolus, dialogMessage = R.string.min_minutes_between_bolus_summary, title = R.string.min_minutes_between_bolus_title))
 
-                //    addPreference(AdaptiveIntPreference(ctx = context, intKey = IntKey.bolus_perc_early, dialogMessage = R.string.bolus_perc_early_summary, title = R.string.bolus_perc_early_title))
 
-                //    addPreference(AdaptiveIntPreference(ctx = context, intKey = IntKey.bolus_perc_mid, dialogMessage = R.string.bolus_perc_mid_summary, title = R.string.bolus_perc_mid_title))
-                //    addPreference(AdaptiveIntPreference(ctx = context, intKey = IntKey.bolus_perc_late, dialogMessage = R.string.bolus_perc_late_summary, title = R.string.bolus_perc_late_title))
 
                 }
                 addPreference(BOLUSMAALTIJDINSTELLINGEN)

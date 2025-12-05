@@ -354,9 +354,6 @@ class DetermineBasalFCL @Inject constructor(
             "data_smoothing_alpha" to round(preferences.get(DoubleKey.data_smoothing_alpha),2).toString(),
             "direction_consistency_threshold" to round(preferences.get(DoubleKey.direction_consistency_threshold),2).toString(),
 
-            // Veiligheids parameters
-            "peak_damping_percentage" to preferences.get(IntKey.peak_damping_percentage).toString(),
-            "hypo_risk_percentage" to preferences.get(IntKey.hypo_risk_percentage).toString(),
 
 
             // Resistentie parameters

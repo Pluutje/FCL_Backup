@@ -1,13 +1,10 @@
 package app.aaps.plugins.aps.openAPSFCL
 
-import android.annotation.SuppressLint
 import android.content.Context
 import android.os.Environment
 import app.aaps.core.keys.BooleanKey
 import app.aaps.core.keys.DoubleKey
-import app.aaps.core.keys.IntKey
 import app.aaps.core.keys.Preferences
-import app.aaps.core.keys.StringKey
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import org.joda.time.DateTime
@@ -15,7 +12,6 @@ import org.joda.time.Days
 import org.joda.time.Minutes
 import java.io.File
 import kotlin.math.abs
-import kotlin.math.exp
 import kotlin.math.max
 import kotlin.math.min
 
@@ -99,8 +95,6 @@ class FCLLearningEngine(
         val bolusPercNight: Double,
         val phaseRisingSlope: Double,
         val phasePlateauSlope: Double,
-        val peakDampingFactor: Double,
-        val hypoRiskFactor: Double,
         val outcome: String,
         val peakConfidence: Double,
         val mealType: String = "unknown"
@@ -337,8 +331,6 @@ class FCLLearningEngine(
                     bolusPercNight = result.parameters.bolusPercNight,
                     phaseRisingSlope = result.parameters.phaseRisingSlope,
                     phasePlateauSlope = result.parameters.phasePlateauSlope,
-                    peakDampingFactor = result.parameters.peakDampingFactor,
-                    hypoRiskFactor = result.parameters.hypoRiskFactor,
                     outcome = result.outcome,
                     peakConfidence = result.peakConfidence,
                     mealType = result.mealType
@@ -376,8 +368,6 @@ class FCLLearningEngine(
                         bolusPercNight = it.bolusPercNight,
                         phaseRisingSlope = it.phaseRisingSlope,
                         phasePlateauSlope = it.phasePlateauSlope,
-                        peakDampingFactor = it.peakDampingFactor,
-                        hypoRiskFactor = it.hypoRiskFactor,
                         timestamp = DateTime(it.timestamp)
                     ),
                     outcome = it.outcome,
@@ -533,8 +523,6 @@ class FCLLearningEngine(
         val bolusPercNight: Double,
         val phaseRisingSlope: Double,     // Vervangt phase_early_rise_slope, phase_mid_rise_slope, phase_late_rise_slope
         val phasePlateauSlope: Double,    // Nieuwe plateau drempel
-        val peakDampingFactor: Double,
-        val hypoRiskFactor: Double,
         val timestamp: DateTime
     )
 

@@ -112,28 +112,7 @@ class FCLParameters(private val preferences: Preferences) {
             impactLevel = "HIGH"
         ),
 
-        // ★★★ DYNAMISCHE AGRESSIVITEIT PARAMETERS ★★★
-        ParameterDefinition(
-            key = DoubleKey.dynamic_night_aggressiveness_threshold,
-            name = "Nacht agressiviteit drempel",
-            category = "BOLUS",
-            minValue = 0.5,
-            maxValue = 5.0,
-            defaultValue = 2.0,
-            description = "Minimale stijging (mmol/L/uur) om nachtagressiviteit te verhogen bij maaltijden",
-            impactLevel = "MEDIUM"
-        ),
-        ParameterDefinition(
-            key = IntKey.enhanced_early_boost_perc,
-            name = "Vroege Bolus Boost %",
-            category = "BOLUS",
-            minValue = 10.0,
-            maxValue = 100.0,
-            defaultValue = 40.0,
-            description = "Maximale extra boost bij sterke stijgingen (10% - 100%)",
-            impactLevel = "MEDIUM"
-        ),
-        ParameterDefinition(
+         ParameterDefinition(
             key = IntKey.min_minutes_between_bolus,
             name = "Minimale tijd tussen bolussen",
             category = "BOLUS",
@@ -230,27 +209,6 @@ class FCLParameters(private val preferences: Preferences) {
             impactLevel = "HIGH"
         ),
 
-        // ★★★ VEILIGHEID PARAMETERS ★★★
-        ParameterDefinition(
-            key = IntKey.peak_damping_percentage,
-            name = "Peak Damping %",
-            category = "SAFETY",
-            minValue = 10.0,
-            maxValue = 100.0,
-            defaultValue = 50.0,
-            description = "Percentage bolus reductie bij piekdetectie",
-            impactLevel = "MEDIUM"
-        ),
-        ParameterDefinition(
-            key = IntKey.hypo_risk_percentage,
-            name = "Hypo Risk Bolus %",
-            category = "SAFETY",
-            minValue = 10.0,
-            maxValue = 50.0,
-            defaultValue = 25.0,
-            description = "Bolus Percentage bij hypo risico",
-            impactLevel = "HIGH"
-        ),
         ParameterDefinition(
             key = IntKey.IOB_corr_perc,
             name = "IOB Safety %",
@@ -300,11 +258,9 @@ class FCLParameters(private val preferences: Preferences) {
             "phase_plateau_slope" -> getParameterValue("Plateau Phase Slope")
             "bolus_perc_day" -> getParameterValue("Daytime Bolus %")
             "bolus_perc_night" -> getParameterValue("Nighttime Bolus %")
-            "dynamic_night_aggressiveness_threshold" -> getParameterValue("Nacht agressiviteit drempel")
+
             "meal_detection_sensitivity" -> getParameterValue("Meal Detection Sensitivity")
             "carb_percentage" -> getParameterValue("Carb Detection %")
-            "peak_damping_percentage" -> getParameterValue("Peak Damping %")
-            "hypo_risk_percentage" -> getParameterValue("Hypo Risk Bolus %")
             "IOB_corr_perc" -> getParameterValue("IOB Safety %")
             "phase_peak_slope" -> getParameterValue("Peak Slope")
             "phase_early_rise_accel" -> getParameterValue("Rising Phase Acceleration")

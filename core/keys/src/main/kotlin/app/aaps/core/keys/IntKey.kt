@@ -78,8 +78,7 @@ enum class IntKey(
     hybrid_basal_perc("hybrid_basal_perc", 30,0,100),
     bolus_perc_day("bolus_perc_day", 100,10,200),
     bolus_perc_night("bolus_perc_night", 20,5,100),
- //   bolus_perc_early("bolus_perc_early", 100,10,200),
- //   bolus_perc_mid("bolus_perc_mid", 60,10,200),
+
 
     bolus_perc_rising("bolus_perc_rising", 120,10,200),
     bolus_perc_plateau("bolus_perc_plateau", 60,10,200),
@@ -90,9 +89,9 @@ enum class IntKey(
     IOB_corr_perc("IOB_corr_perc", 100,50,150),
 
     carb_percentage("carb_percentage", 100,10,200),
-    peak_damping_percentage("peak_damping_percentage", 50,10,100),
+//    peak_damping_percentage("peak_damping_percentage", 50,10,100),
     tau_absorption_minutes("tau_absorption_minutes", 40,20,60),
-    hypo_risk_percentage("hypo_risk_percentage", 25,10,50),
+//    hypo_risk_percentage("hypo_risk_percentage", 25,10,50),
 
 
     persistent_CoolDown("persistent_CoolDown", 15,10,45),
@@ -106,7 +105,7 @@ enum class IntKey(
 
     Advice_Interval_Hours("Advice_Interval_Hours", 24,1,48),
 
-    enhanced_early_boost_perc("enhanced_early_boost_perc", 40,10,100),
+ //   enhanced_early_boost_perc("enhanced_early_boost_perc", 40,10,100),
     min_minutes_between_bolus("min_minutes_between_bolus", 8,5,15),
 
 }

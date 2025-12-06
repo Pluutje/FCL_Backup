@@ -5652,7 +5652,7 @@ $recentMealsDisplay"""
 
         return """
 ╔═══════════════════
-║  ══ FCL v10.0.1 ══ 
+║  ══ FCL v10.1.1 ══ 
 ╚═══════════════════
 
 🛡️ VEILIGHEIDSSYSTEEM

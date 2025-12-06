@@ -3066,13 +3066,13 @@ class FCLMetrics(private val context: Context, private val preferences: Preferen
 
         // ★★★ KERNPARAMETERS EERST ★★★
         val coreParameters = listOf(
-            "bolus_perc_rising", "phase_rising_slope",
-            "bolus_perc_plateau", "phase_plateau_slope"
+            "bolus_perc_day", "bolus_perc_rising", "bolus_perc_plateau",
+            "phase_rising_slope", "phase_plateau_slope"
         )
 
         // ★★★ ONDERSTEUNENDE PARAMETERS ★★★
         val supportingParameters = listOf(
-            "bolus_perc_day", "bolus_perc_night",
+             "bolus_perc_night",
             "meal_detection_sensitivity", "carb_percentage",
             "peak_damping_percentage", "hypo_risk_percentage", "IOB_corr_perc"
         )
@@ -4053,7 +4053,12 @@ class FCLMetrics(private val context: Context, private val preferences: Preferen
                 direction = advice.changeDirection
             )
 
-            updateParameterAdviceInBackground(paramAdvice)
+            // --- Advisor laag ---
+            val filtered = FCLAdvisor.filterAdvice(paramAdvice)
+
+            if (filtered != null) {
+                updateParameterAdviceInBackground(filtered)
+            }
         }
 
         Handler(Looper.getMainLooper()).postDelayed({

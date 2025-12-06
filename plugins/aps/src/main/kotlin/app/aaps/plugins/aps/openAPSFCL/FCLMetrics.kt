@@ -1536,18 +1536,26 @@ class FCLMetrics(private val context: Context, private val preferences: Preferen
                 return // ★★★ NIET VERDER GAAN TIJDENS INIT ★★★
             }
 
+            // ★★★ EERST: LAAT FCLAdvisor FILTEREN OP MAALTIJD-FASE ★★★
+            val advisorAdvice = FCLAdvisor.filterAdvice(advice) ?: return
+
+
             // ★★★ PAS 10% MAX CHANGE LIMIET TOE ★★★
             val (limitedRecommendedValue, wasLimited, limitationNote) =
-                applyMax10PercentChange(advice.currentValue, advice.recommendedValue, advice.parameterName)
+                applyMax10PercentChange(
+                    advisorAdvice.currentValue,
+                    advisorAdvice.recommendedValue,
+                    advisorAdvice.parameterName
+                )
 
             // Update het advies met de beperkte waarde
             val limitedAdvice = if (wasLimited) {
-                advice.copy(
+                advisorAdvice.copy(
                     recommendedValue = limitedRecommendedValue,
-                    reason = "${advice.reason}${limitationNote}"
+                    reason = "${advisorAdvice.reason}${limitationNote}"
                 )
             } else {
-                advice.copy(recommendedValue = limitedRecommendedValue)
+                advisorAdvice.copy(recommendedValue = limitedRecommendedValue)
             }
 
             // Bewaar minimale zichtbaarheid
@@ -2314,13 +2322,16 @@ class FCLMetrics(private val context: Context, private val preferences: Preferen
                             totalCarbs = totalCarbsDetected,
                             totalInsulin = totalInsulinDelivered,
                             firstBolusTime = firstBolusTime,
-                            historicalData = csvData // NIEUWE PARAMETER
+                            historicalData = csvData
                         )
 
                         if (isValidMeal(mealMetrics)) {
-                            // Run optimizer for this meal & aggregate across previous meals (advice-only)
+                            // ➜ Nieuw: meld de maaltijd aan de advisor
+                            FCLAdvisor.registerMealMetrics(mealMetrics)
+
+
+                            // Bestaande optimizer-logica
                             try {
-                                // run optimizer for this single meal (immediately)
                                 val advsForMeal = runIterativeParameterOptimizerForMeal(mealMetrics)
                                 advsForMeal.forEach { a ->
                                     val advice = ParameterAdvice(
@@ -2334,18 +2345,18 @@ class FCLMetrics(private val context: Context, private val preferences: Preferen
                                     updateParameterAdviceInBackground(advice)
                                 }
 
-                                // Run aggregated optimizer across last 5 meals (optional, you can change 5)
-                                val allMealsSoFar = cachedMealMetrics.toMutableList().apply { add(0, mealMetrics) } // most recent first
+                                val allMealsSoFar = cachedMealMetrics.toMutableList().apply { add(0, mealMetrics) }
                                 runOptimizerOverLastNMealsAndAggregate(allMealsSoFar, 5)
                             } catch (e: Exception) {
                                 // swallow/log
                             }
+
                             meals.add(mealMetrics)
                         }
 
-
                         currentMealStart = null
                     }
+
                 }
             }
 
@@ -2363,6 +2374,7 @@ class FCLMetrics(private val context: Context, private val preferences: Preferen
                 )
 
                 if (isValidMeal(mealMetrics)) {
+                    FCLAdvisor.registerMealMetrics(mealMetrics)
                     meals.add(mealMetrics)
                 }
             }

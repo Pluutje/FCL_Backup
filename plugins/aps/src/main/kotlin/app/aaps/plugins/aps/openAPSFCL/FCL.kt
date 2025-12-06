@@ -2184,8 +2184,17 @@ class FCL @Inject constructor(
         maxBolus: Double,
         consecutiveBoluses: Int
     ): Double {
+        val lowBGFactor = when {
+            currentBG < targetBG -> 0.1  // Onder target (5.2): 80% reductie
+            currentBG < targetBG + 0.3 -> 0.15  // Onder (5.5): 70% reductie
+            currentBG < targetBG + 0.5 -> 0.2  // Onder (5.7): 60% reductie
+            currentBG < targetBG + 0.7 -> 0.3  // Onder (5.9): 40% reductie
+            currentBG < targetBG + 1.0 -> 0.4  // Onder (6.2): 20% reductie
+            else -> 0.8
+        }
+
         // ★★★ BASIS BOLUS GEBASEERD OP CARBS ★★★
-        val baseCarbsBolus = detectedCarbs / effectiveCR
+        val baseCarbsBolus = (detectedCarbs / effectiveCR) * lowBGFactor
 
         // ★★★ STIJGING CORRECTION ★★★
         val slopeCorrection = when {
@@ -4397,8 +4406,20 @@ class FCL @Inject constructor(
                 }
             }
 
-            // ★★★ DYNAMISCHE MAALTIJD BOLUS OVERRIDE VOOR BETERE TIMING ★★★
-            if (finalMealDetected && detectedCarbs > 15 && robustTrends.firstDerivative > 0.5) {
+// ★★★ DYNAMISCHE MAALTIJD BOLUS OVERRIDE VOOR BETERE TIMING ★★★
+// ★★★ NIEUVE VEILIGHEIDSCHECK: GEEN OVERRIDE BIJ LAGE BG ★★★
+            val shouldAllowMealOverride = when {
+                !finalMealDetected -> false
+                detectedCarbs <= 15 -> false
+                robustTrends.firstDerivative <= 0.5 -> false
+                // ★★★ CRITIEK: GEEN OVERRIDE BIJ LAGE BG ★★★
+                currentData.bg < effectiveTarget -> false  // Onder target: geen override
+                currentData.bg < effectiveTarget + 0.5 -> false  // Minder dan 0.5 boven target: geen override
+                currentData.bg < effectiveTarget + 1.0 && robustTrends.firstDerivative < 2.0 -> false  // Alleen bij sterke stijging
+                else -> true
+            }
+
+            if (shouldAllowMealOverride) {
                 val dynamicMealBolus = calculateDynamicBolusForMeal(
                     currentBG = currentData.bg,
                     targetBG = effectiveTarget,
@@ -4409,12 +4430,24 @@ class FCL @Inject constructor(
                     consecutiveBoluses = phasedBolusManager.getConsecutiveBolusesCount()
                 )
 
+                // ★★★ APPLY LOW BG REDUCTION EVEN IF OVERRIDE IS ALLOWED ★★★
+
+                val lowBGFactor = when {
+                    currentData.bg < effectiveTarget -> 0.1  // Onder target (5.2): 80% reductie
+                    currentData.bg < effectiveTarget + 0.3 -> 0.15  // Onder (5.5): 70% reductie
+                    currentData.bg < effectiveTarget + 0.5 -> 0.2  // Onder (5.7): 60% reductie
+                    currentData.bg < effectiveTarget + 0.7 -> 0.3  // Onder (5.9): 40% reductie
+                    currentData.bg < effectiveTarget + 1.0 -> 0.4  // Onder (6.2): 20% reductie
+                    else -> 0.8
+                }
+                val dynamicMealBolusAdjusted = dynamicMealBolus * lowBGFactor
+
                 // ★★★ COMBINEER MET EXISTENDE BOLUS VOOR VEILIGHEID ★★★
                 val currentMathBolus = finalDose
-                val combinedBolus = max(dynamicMealBolus, currentMathBolus)
+                val combinedBolus = max(dynamicMealBolusAdjusted, currentMathBolus)
 
                 // ★★★ PAS ALLEEN AAN ALS DYNAMISCHE BOLUS GROTER IS ★★★
-                if (dynamicMealBolus > currentMathBolus * 1.2) {  // Minstens 20% groter
+                if (dynamicMealBolusAdjusted > currentMathBolus * 1.2) {  // Minstens 20% groter
                     finalDose = combinedBolus
 
                     // ★★★ UPDATE REASON MET BEIDE METHODES ★★★
@@ -4426,7 +4459,7 @@ class FCL @Inject constructor(
                         finalReason.split(" | ").firstOrNull() ?: ""
 
                     // ★★★ LOG VOOR DEBUGGING ★★★
-                    lastReservedBolusDebug += " | DynMeal:${round(dynamicMealBolus,2)}U > Math:${round(currentMathBolus,2)}U"
+                    lastReservedBolusDebug += " | DynMeal:${round(dynamicMealBolusAdjusted,2)}U > Math:${round(currentMathBolus,2)}U"
                 }
             }
 
@@ -5282,7 +5315,7 @@ class FCL @Inject constructor(
             append("📊 PARAMETER ADVIES\n")
             append("───────────────────────────\n")
             append("• Volgend advies over ${getNextAdviceTimeFormatted()}h \n")
-            append("• ${validSummaries.size}/${summaries.size} parameters geoptimaliseerd\n")
+            append("• ${validSummaries.size}/${summaries.size} parameters geoptimaliseerd\n\n")
         //    append("• Gebruikt EWMA smoothing ± deadband filtering\n")
 
 
@@ -5619,7 +5652,7 @@ $recentMealsDisplay"""
 
         return """
 ╔═══════════════════
-║  ══ FCL v9.4.5 ══ 
+║  ══ FCL v10.0.1 ══ 
 ╚═══════════════════
 
 🛡️ VEILIGHEIDSSYSTEEM
@@ -5751,7 +5784,7 @@ $mealPerformanceSummary
 
 ${formatParameterSummary()}  
 
-     
+${FCLAdvisor.buildMealReport()}     
 
         
 """.trimIndent()

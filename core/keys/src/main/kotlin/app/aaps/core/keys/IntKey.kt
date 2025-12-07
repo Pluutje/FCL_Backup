@@ -107,5 +107,6 @@ enum class IntKey(
 
  //   enhanced_early_boost_perc("enhanced_early_boost_perc", 40,10,100),
     min_minutes_between_bolus("min_minutes_between_bolus", 8,5,15),
+    parameter_update_frequentie("parameter_update_frequentie", 24,8,72),
 
 }

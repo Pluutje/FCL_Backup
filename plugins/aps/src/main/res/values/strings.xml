@@ -270,6 +270,10 @@
 
     <string name="FCLAanUit_summary">Bij activering wordt bij stijging van de BG en maaltijd detectie automatisch de insuline afgifte verhoogd</string>
     <string name="FCLAanUit_title">Full Closed Loop</string>
+    <string name="auto_parameter_update_summary">Wanneer ingeschakeld worden de geadviseerde parameters automatisch geupdate. LET OP! Alleen aanzetten indien zeker is dat het parameter advies systeem de juiste adviezen geeft. Zit nog in de experimentele fase</string>
+    <string name="auto_parameter_update_title">Auto parameter update</string>
+    <string name="parameter_update_frequentie_summary">Wachttijd tussen 2 opeenvolgende automatische parameter update. (8 - 72 uur) </string>
+    <string name="parameter_update_frequentie_title">Auto parameter update frequentie</string>
     <string name="ResetLearning_summary">Wanneer ingeschakeld worden bij de eerst volgende run de FCL-learnings gewist. LET OP! na de reset weer uitzetten anders blijft de data gewist</string>
     <string name="ResetLearning_title">Reset Learning</string>
     <string name="Advice_Interval_Hours_summary">Update tijd tussen 2 opeenvolgende parameter advies berekeningen. Instelbaar tussen 4 en 48 uur.</string>

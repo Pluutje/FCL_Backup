@@ -405,9 +405,13 @@ class FCL @Inject constructor(
 
         // ★★★ INITIALISEER FCL REFERENTIE IN METRICS HELPER ★★★
         metricsHelper.setFCLReference(this)
+        FCLAdvisor.initialize(preferences)
+        FCLAdvisor.registerMetricsHelper(metricsHelper)
 
         // ★★★ INITIALISEER PREVENTIEVE CARBS DETECTIE ★★★
         initializePreventiveCarbsDetection()
+
+
     }
 
     private fun initializeActivitySystem() {
@@ -5283,171 +5287,17 @@ class FCL @Inject constructor(
     }
 
 
+
     private fun formatParameterSummary(): String {
         val summaries = metricsHelper.getCachedParameterSummary()
 
-        // Filter met verbeterde logica
-        val validSummaries = summaries.filter { summary ->
-            val isDetectionParam = summary.parameterName.contains("phase_") ||
-                summary.parameterName.contains("detection") ||
-                summary.parameterName.contains("slope")
+        // ❗AUTOMATISCHE UPDATE HIER
+        FCLAdvisor.applyAutomaticUpdatesFromSummaries(summaries)
 
-            val hasSufficientConfidence = if (isDetectionParam) {
-                summary.confidence >= 0.15 || summary.lastAdvice != null
-            } else {
-                summary.confidence >= 0.25 || summary.lastAdvice != null
-            }
-
-            val hasValidValue = summary.weightedAverage > 0.0 ||
-                (summary.lastAdvice != null && summary.lastAdvice.recommendedValue > 0.0)
-
-            hasSufficientConfidence && hasValidValue && !summary.manuallyAdjusted
-        }
-
-        if (validSummaries.isEmpty()) {
-            return """📊 PARAMETER ADVIES
-─────────────────────
-• Status: Wacht op voldoende maaltijd data (minimaal 3 maaltijden)
-• Volgend advies: over ${getNextAdviceTimeFormatted()}"""
-        }
-
-        return buildString {
-            append("📊 PARAMETER ADVIES\n")
-            append("───────────────────────────\n")
-            append("• Volgend advies over ${getNextAdviceTimeFormatted()}h \n")
-            append("• ${validSummaries.size}/${summaries.size} parameters geoptimaliseerd\n\n")
-        //    append("• Gebruikt EWMA smoothing ± deadband filtering\n")
-
-
-            // Groepeer parameters met verbeterde categorisatie
-            val bolusParams = validSummaries.filter { it.parameterName.contains("bolus_perc") }
-            val detectionParams = validSummaries.filter { it.parameterName.contains("phase_") }
-            val safetyParams = validSummaries.filter {
-                it.parameterName.contains("hypo") || it.parameterName.contains("IOB")
-            }
-            val sensitivityParams = validSummaries.filter {
-                it.parameterName.contains("sensitivity") || it.parameterName.contains("carb")
-            }
-
-            fun appendParameterCard(summary: FCLMetrics.ParameterAdviceSummary) {
-                val displayName = getParameterDisplayName(summary.parameterName)
-                val currentFormatted = formatParameterValue(summary.parameterName, summary.currentValue)
-
-                // Gebruik weighted average, fallback naar lastAdvice of current
-                var advisedValue = summary.weightedAverage
-                if (advisedValue == 0.0 && summary.lastAdvice != null) {
-                    advisedValue = summary.lastAdvice.recommendedValue
-                }
-                if (advisedValue == 0.0) {
-                    advisedValue = summary.currentValue
-                }
-
-                val advisedFormatted = AdviceformatParameterValue(summary.parameterName, advisedValue)
-                val confidencePercent = (summary.confidence * 100).toInt()
-
-                // ★★★ Bereken het DAADWERKELIJKE percentage verschil ★★★
-                val percentageChange = if (summary.currentValue != 0.0) {
-                    ((advisedValue - summary.currentValue) / summary.currentValue) * 100
-                } else {
-                    0.0
-                }
-
-                val (changeIcon, changeText, _) = calculateChangeInfo(
-                    summary.currentValue,
-                    advisedValue,
-                    summary.parameterName
-                )
-
-                // Bepaal urgency op basis van confidence en verschil
-                val urgency = when {
-                    summary.confidence >= 0.7 && abs(percentageChange) > 5 -> "🔴"
-                    summary.confidence >= 0.5 -> "🟡"
-                    else -> "🟢"
-                }
-
-                // Bepaal max dagelijkse wijziging voor deze parameter
-                val maxDailyChange = when {
-                    summary.parameterName.contains("phase_") || summary.parameterName.contains("slope") -> 8.0
-                    summary.parameterName.contains("perc") || summary.parameterName.contains("percentage") -> 5.0
-                    else -> 5.0
-                }
-
-                append("$urgency ${getTrendSymbol(summary.trend)} $displayName\n")
-                append("   $changeIcon $changeText (${String.format("%+.1f", percentageChange)}%)\n")
-                append("   Huidig: $currentFormatted → Advies: $advisedFormatted\n")
-                append("   Vertrouwen: ${confidencePercent}%\n")
-              //  append(" | Max/dag: ${maxDailyChange.toInt()}%\n") // ★★★ Toon max dagelijkse wijziging ★★★
-
-                if (summary.manuallyAdjusted) {
-                    append("   ⚠️ Handmatig aangepast")
-                    summary.lastManualAdjustment?.let {
-                        append(" (${it.toString("dd-MM HH:mm")})")
-                    }
-                    append("\n")
-                }
-
-                // Toon extra info voor belangrijke wijzigingen
-                if (summary.confidence >= 0.6 && abs(percentageChange) > 3) {
-                    append("   ⭐ Aanbevolen aanpassing\n")
-                }
-
-                append("\n")
-            }
-
-            // Voeg secties toe op basis van beschikbaarheid
-            if (bolusParams.isNotEmpty()) {
-                append("💉 BOLUS DOSERING\n")
-                append("${"-".repeat(18)}\n")
-                bolusParams.forEach { appendParameterCard(it) }
-            }
-
-            if (detectionParams.isNotEmpty()) {
-                append("🎯 FASE DETECTIE\n")
-                append("${"-".repeat(18)}\n")
-                detectionParams.forEach { appendParameterCard(it) }
-            }
-
-            if (safetyParams.isNotEmpty()) {
-                append("🛡️ VEILIGHEID\n")
-                append("${"-".repeat(18)}\n")
-                safetyParams.forEach { appendParameterCard(it) }
-            }
-
-            if (sensitivityParams.isNotEmpty()) {
-                append("📈 GEVOELIGHEID\n")
-                append("${"-".repeat(18)}\n")
-                sensitivityParams.forEach { appendParameterCard(it) }
-            }
-
-            val significantCount = validSummaries.count { summary ->
-                val percentageChange = if (summary.currentValue != 0.0) {
-                    ((summary.weightedAverage - summary.currentValue) / summary.currentValue) * 100
-                } else {
-                    0.0
-                }
-                abs(percentageChange) > 3.0 // > 3% is significant
-            }
-
-            val highConfidenceCount = validSummaries.count { it.confidence >= 0.6 }
-            val totalProposedChange = validSummaries.sumOf { summary ->
-                if (summary.currentValue != 0.0) {
-                    abs((summary.weightedAverage - summary.currentValue) / summary.currentValue) * 100
-                } else {
-                    0.0
-                }
-            }
-
-            append("📈 SAMENVATTING\n")
-            append("${"-".repeat(18)}\n")
-            append("• ${validSummaries.size} parameters geanalyseerd\n")
-            append("• ${significantCount} significante aanpassingen (>3%)\n")
-            append("• ${highConfidenceCount} hoge betrouwbaarheid (≥60%)\n")
-            append("• Totale voorgestelde wijziging: ${String.format("%.1f", totalProposedChange)}%\n")
-         //   append("• Systeem gebruikt EWMA smoothing + deadband\n")
-          //  append("• Max dagelijkse wijziging: 5-8% per parameter\n")
-         //   append("• Minimale drempel: 1-2% (deadband)\n")
-        }
+        val next = getNextAdviceTimeFormatted()
+        return FCLAdvisor.buildUnifiedUI(summaries, next)
     }
+
 
     private fun calculateChangeInfo(currentValue: Double, recommendedValue: Double, parameterName: String): Triple<String, String, Double> {
         val difference = recommendedValue - currentValue
@@ -5652,7 +5502,7 @@ $recentMealsDisplay"""
 
         return """
 ╔═══════════════════
-║  ══ FCL v10.1.2 ══ 
+║  ══ FCL v10.6.2 ══ 
 ╚═══════════════════
 
 🛡️ VEILIGHEIDSSYSTEEM
@@ -5704,27 +5554,6 @@ ${getPreventiveCarbsStatus()}
 • Consistentie: ${((lastRobustTrends?.consistency ?: 0.0) * 100).toInt()}%
 • Datapunten gebruikt: ${recentDataForAnalysis.size}
 
-⚙️ INSTELLINGEN & CONFIGURATIE
-─────────────────────
-[ BOLUS INSTELLINGEN ]
-• Overall Aggressiveness: $Day_Night → ${getCurrentBolusAggressiveness().toInt()}% 
-• Stijgende fase: ${preferences.get(IntKey.bolus_perc_rising)}% → ${(preferences.get(IntKey.bolus_perc_rising).toDouble() * getCurrentBolusAggressiveness() / 100.0).toInt()}%
-• Plateau fase: ${preferences.get(IntKey.bolus_perc_plateau)}% → ${(preferences.get(IntKey.bolus_perc_plateau).toDouble() * getCurrentBolusAggressiveness() / 100.0).toInt()}%
-
-[ FASE DETECTIE INSTELLINGEN ]
-• Stijging drempel: ${round(preferences.get(DoubleKey.phase_rising_slope), 1)} mmol/L/uur
-• Plateau drempel: ${round(preferences.get(DoubleKey.phase_plateau_slope), 1)} mmol/L/uur
-
-[ MAALTIJD INSTELLINGEN ]
-• Carb berekening: ${preferences.get(IntKey.carb_percentage)}%
-• Absorptietijd: ${preferences.get(IntKey.tau_absorption_minutes)} min
-• Detectie sensitiviteit: ${round(preferences.get(DoubleKey.meal_detection_sensitivity), 2)} mmol/L/5min
-• CR/ISF aanpassingsbereik: ${round(preferences.get(DoubleKey.CarbISF_min_Factor), 2)} - ${round(preferences.get(DoubleKey.CarbISF_max_Factor), 2)}
-
-[ TIJDINSTELLINGEN ]
-• Ochtend start: ${preferences.get(StringKey.OchtendStart)} (weekend: ${preferences.get(StringKey.OchtendStartWeekend)})
-• Nacht start: ${preferences.get(StringKey.NachtStart)}
-• Weekend dagen: ${preferences.get(StringKey.WeekendDagen)}
 
 📊 LEARNING SYSTEEM
 ─────────────────────
@@ -5781,10 +5610,31 @@ $mealPerformanceSummary
 • GMI (HbA1c): ${round(metrics7d.gmi, 1)}% (${(metrics7d.gmi * 10.93 - 23.5).toInt()} mmol/mol)
 • Variatie (CV): ${metrics7d.cv.toInt()}% ${if (metrics7d.cv > 36) "⚠️" else ""}
 
+⚙️ PARAMETER INSTELLINGEN 
+─────────────────────
+[ BOLUS INSTELLINGEN ]
+• Overall Aggressiveness: $Day_Night → ${getCurrentBolusAggressiveness().toInt()}% 
+• Stijgende fase: ${preferences.get(IntKey.bolus_perc_rising)}% → ${(preferences.get(IntKey.bolus_perc_rising).toDouble() * getCurrentBolusAggressiveness() / 100.0).toInt()}%
+• Plateau fase: ${preferences.get(IntKey.bolus_perc_plateau)}% → ${(preferences.get(IntKey.bolus_perc_plateau).toDouble() * getCurrentBolusAggressiveness() / 100.0).toInt()}%
 
-${formatParameterSummary()}  
+[ FASE DETECTIE INSTELLINGEN ]
+• Stijging drempel: ${round(preferences.get(DoubleKey.phase_rising_slope), 2)} mmol/L/uur
+• Plateau drempel: ${round(preferences.get(DoubleKey.phase_plateau_slope), 2)} mmol/L/uur
 
-${FCLAdvisor.buildMealReport()}     
+[ MAALTIJD INSTELLINGEN ]
+• Carb berekening: ${preferences.get(IntKey.carb_percentage)}%
+• Absorptietijd: ${preferences.get(IntKey.tau_absorption_minutes)} min
+• Detectie sensitiviteit: ${round(preferences.get(DoubleKey.meal_detection_sensitivity), 2)} mmol/L/5min
+• CR/ISF aanpassingsbereik: ${round(preferences.get(DoubleKey.CarbISF_min_Factor), 2)} - ${round(preferences.get(DoubleKey.CarbISF_max_Factor), 2)}
+
+[ TIJDINSTELLINGEN ]
+• Ochtend start: ${preferences.get(StringKey.OchtendStart)} (weekend: ${preferences.get(StringKey.OchtendStartWeekend)})
+• Nacht start: ${preferences.get(StringKey.NachtStart)}
+• Weekend dagen: ${preferences.get(StringKey.WeekendDagen)}
+
+ 
+ ${formatParameterSummary()}
+ ${FCLAdvisor.buildMealReport()} 
 
         
 """.trimIndent()

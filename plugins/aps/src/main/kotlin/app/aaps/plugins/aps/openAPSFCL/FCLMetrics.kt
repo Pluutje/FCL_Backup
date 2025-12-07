@@ -3376,7 +3376,7 @@ class FCLMetrics(private val context: Context, private val preferences: Preferen
                         val parametersFile = File(Environment.getExternalStorageDirectory().absolutePath + "/Documents/AAPS/ANALYSE/WeightedAverages.csv")
 
                         // ★★★ HEADER MOET ALLEEN 1x GESCHREVEN WORDEN ★★★
-                        val headerRow = "timestamp,bolus_perc_day,bolus_perc_rising,phase_rising_slope,bolus_perc_plateau,phase_plateau_slope,IOB_corr_perc\n"
+                        val headerRow = "tijd, %-Dag , %-Stijging , Drempel-Stijging , %-Plateau , Drempel-Plateau , IOB-corr-%\n"
 
 
                         // Format de waarden
@@ -3392,32 +3392,47 @@ class FCLMetrics(private val context: Context, private val preferences: Preferen
                             }
                         }
 
-                        val valuesToRecord = "$dateStr," + valuesList.joinToString(",") + "\n"
+                        val valuesToRecord = "$dateStr , " + valuesList.joinToString(" , ") + "\n"
 
-                        // ★★★ THREAD-SAFE FILE OPERATIONS ★★★
+// ★★★ THREAD-SAFE FILE OPERATIONS ★★★
                         synchronized(parametersFile) {
+
                             if (!parametersFile.exists()) {
                                 parametersFile.parentFile?.mkdirs()
                                 parametersFile.createNewFile()
-                                parametersFile.appendText(headerRow)
                             }
 
-                            // ★★★ SCHRIJF ALLEEN EEN NIEUWE REGEL ALS HET ANDERS IS DAN DE LAATSTE ★★★
                             val existingLines = parametersFile.readLines()
-                            if (existingLines.size >= 2) {
-                                val lastLine = existingLines.last()
-                                if (lastLine.startsWith(dateStr.substring(0, 16))) {
-                                    // Zelfde minuut, vervang laatste regel
-                                    val newLines = existingLines.dropLast(1) + valuesToRecord.trim()
-                                    parametersFile.writeText(newLines.joinToString("\n") + "\n")
-                                } else {
-                                    // Nieuwe minuut, voeg toe
-                                    parametersFile.appendText(valuesToRecord)
+
+                            // --- Nieuw: negeer ALTIJD de header, want we schrijven hem zelf ---
+                            val dataLines = existingLines
+                                .drop(1)               // verwijder bestaande header
+                                .filter { it.isNotBlank() }
+                                .toMutableList()
+
+                            // --- Oudere dan 72 uur verwijderen ---
+                            val cutoff = DateTime.now().minusHours(72)
+                            val filtered = dataLines.filter { line ->
+                                try {
+                                    val ts = DateTime.parse(line.substring(0, 19))
+                                    ts.isAfter(cutoff)
+                                } catch (e: Exception) {
+                                    false
                                 }
-                            } else {
-                                parametersFile.appendText(valuesToRecord)
+                            }.toMutableList()
+
+                            // --- Nieuwe regel bovenaan zetten ---
+                            filtered.add(0, valuesToRecord.trim())
+
+                            // --- Bestand herschrijven met altijd de actuele headerRow ---
+                            val finalContent = buildString {
+                                append(headerRow.trim()).append("\n")   // ← altijd de huidige headerRow
+                                filtered.forEach { append(it).append("\n") }
                             }
+
+                            parametersFile.writeText(finalContent)
                         }
+
 
                         // Update tracking
                         lastLogTime = now

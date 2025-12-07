@@ -32,6 +32,20 @@ class FCLParameters(private val preferences: Preferences) {
         val changeDirection: String // "INCREASE", "DECREASE", "OPTIMAL"
     )
 
+    fun getAllDefinitions(): List<ParameterDefinition> = parameterDefinitions
+    fun getDefinitionByTechnicalName(name: String): ParameterDefinition? {
+        return parameterDefinitions.find { def ->
+            when (name) {
+                "bolus_perc_rising" -> def.key == IntKey.bolus_perc_rising
+                "bolus_perc_plateau" -> def.key == IntKey.bolus_perc_plateau
+                "bolus_perc_day" -> def.key == IntKey.bolus_perc_day
+                "phase_rising_slope" -> def.key == DoubleKey.phase_rising_slope
+                "phase_plateau_slope" -> def.key == DoubleKey.phase_plateau_slope
+                else -> false
+            }
+        }
+    }
+
     // ★★★ PARAMETER DEFINITIES - NIEUWE 2-FASE STRUCTUUR ★★★
     private val parameterDefinitions = listOf(
         // ★★★ NIEUWE 2-FASE BOLUS PARAMETERS ★★★

@@ -742,10 +742,12 @@ open class OpenAPSFCLPlugin @Inject constructor(
                         )
                     )
 
-                    addPreference(AdaptiveSwitchPreference(ctx = context, booleanKey = BooleanKey.ResetLearning, summary = R.string.ResetLearning_summary, title = R.string.ResetLearning_title))
+                    addPreference(AdaptiveSwitchPreference(ctx = context, booleanKey = BooleanKey.auto_parameter_update, summary = R.string.auto_parameter_update_summary, title = R.string.auto_parameter_update_title))
+                    addPreference(AdaptiveIntPreference(ctx = context, intKey = IntKey.parameter_update_frequentie, dialogMessage = R.string.parameter_update_frequentie_summary, title = R.string.parameter_update_frequentie_title))
                     addPreference(AdaptiveIntPreference(ctx = context, intKey = IntKey.Advice_Interval_Hours, dialogMessage = R.string.Advice_Interval_Hours_summary, title = R.string.Advice_Interval_Hours_title))
                     addPreference(AdaptiveDoublePreference(ctx = context, doubleKey = DoubleKey.CarbISF_min_Factor, dialogMessage = R.string.CarbISF_min_Factor_summary, title = R.string.CarbISF_min_Factor_title))
                     addPreference(AdaptiveDoublePreference(ctx = context, doubleKey = DoubleKey.CarbISF_max_Factor, dialogMessage = R.string.CarbISF_max_Factor_summary, title = R.string.CarbISF_max_Factor_title))
+                    addPreference(AdaptiveSwitchPreference(ctx = context, booleanKey = BooleanKey.ResetLearning, summary = R.string.ResetLearning_summary, title = R.string.ResetLearning_title))
                 }
                 addPreference(LEERSYSTEEMINSTELLINGEN)
 

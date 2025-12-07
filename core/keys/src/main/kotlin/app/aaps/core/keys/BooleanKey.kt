@@ -117,6 +117,6 @@ enum class BooleanKey(
     Resistentie("Resistentie",true),
     PersistentAanUit("PersistentAanUit",true),
     stappenAanUit("stappenAanUit",true),
-    FCLAanUit("FCLAanUit",true),
+    auto_parameter_update("auto_parameter_update",false),
     ResetLearning("ResetLearning",false),
 }

@@ -3310,8 +3310,11 @@ class FCLMetrics(private val context: Context, private val preferences: Preferen
 
                 // ★★★ HAAL ALLEEN NIEUWE ADVIEZEN OP DIE DAADWERKELIJK ANDERS ZIJN ★★★
                 val paramOrder = listOf(
-                    "bolus_perc_rising", "phase_rising_slope",
-                    "bolus_perc_plateau", "phase_plateau_slope",
+                    "bolus_perc_day",
+                    "bolus_perc_rising",
+                    "phase_rising_slope",
+                    "bolus_perc_plateau",
+                    "phase_plateau_slope",
                     "IOB_corr_perc"
                 )
 
@@ -3373,7 +3376,8 @@ class FCLMetrics(private val context: Context, private val preferences: Preferen
                         val parametersFile = File(Environment.getExternalStorageDirectory().absolutePath + "/Documents/AAPS/ANALYSE/WeightedAverages.csv")
 
                         // ★★★ HEADER MOET ALLEEN 1x GESCHREVEN WORDEN ★★★
-                        val headerRow = "timestamp,bolus_perc_rising,phase_rising_slope,bolus_perc_plateau,phase_plateau_slope,IOB_corr_perc\n"
+                        val headerRow = "timestamp,bolus_perc_day,bolus_perc_rising,phase_rising_slope,bolus_perc_plateau,phase_plateau_slope,IOB_corr_perc\n"
+
 
                         // Format de waarden
                         val valuesList = paramOrder.map { paramName ->

@@ -312,6 +312,8 @@
     <string name="max_bolus_day_title">Max Bolus overdag[eh]</string>
     <string name="max_bolus_night_summary">Maximum SMB-bolus die snachts kan worden afgegeven</string>
     <string name="max_bolus_night_title">Max Bolus nacht [eh]</string>
+    <string name="BlockSMBnacht_summary">Indien ingeschakeld worden er snachts geen SMB afgegeven</string>
+    <string name="BlockSMBnacht_title">Blokker nacht SMB</string>
     <string name="IOB_corr_perc_summary">Percentage IOB correction for bolus calculation. Higher number = more bolus</string>
     <string name="IOB_corr_perc_title">Bolus correction strenght for IOB[%]</string>
     <string name="carb_percentage_summary">Percentage waarmee de FCL code de berekende carbs vermenigvuldigd</string>

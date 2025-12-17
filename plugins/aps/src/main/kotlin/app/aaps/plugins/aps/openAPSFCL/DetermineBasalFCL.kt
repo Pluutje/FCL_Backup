@@ -60,7 +60,7 @@ class DetermineBasalFCL @Inject constructor(
 
 
     private val fcl = FCL(profileUtil,fabricPrivacy,preferences,dateUtil,persistenceLayer,context)
-    private val FCLMetrics = FCLMetrics(context,preferences)
+    private val FCLMetrics = FCLMetrics(context,preferences,persistenceLayer)
 
     private var FCL_SMB: Double = 0.0
 
@@ -678,13 +678,13 @@ class DetermineBasalFCL @Inject constructor(
 // *************************************************************************************************************************8
 
 
-      //  val learningStatus = FCLLearningEngine(preferences, context).getLearningStatus()
 
         val statusText = fcl.getFCLStatus()
 
         statusText.split("\n").forEach { line ->
             consoleError.add(line)
         }
+        consoleError.add("\n"+"\n")
 
 
         logFCLParameters()

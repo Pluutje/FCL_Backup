@@ -629,6 +629,7 @@ open class OpenAPSFCLPlugin @Inject constructor(
                     )
                     addPreference(AdaptiveDoublePreference(ctx = context, doubleKey = DoubleKey.max_bolus_day, dialogMessage = R.string.max_bolus_day_summary, title = R.string.max_bolus_day_title))
                     addPreference(AdaptiveDoublePreference(ctx = context, doubleKey = DoubleKey.max_bolus_night, dialogMessage = R.string.max_bolus_night_summary, title = R.string.max_bolus_night_title))
+                    addPreference(AdaptiveSwitchPreference(ctx = context, booleanKey = BooleanKey.BlockSMBnacht, summary = R.string.BlockSMBnacht_summary, title = R.string.BlockSMBnacht_title))
                     addPreference(AdaptiveDoublePreference(ctx = context, doubleKey = DoubleKey.ApsMaxBasal, dialogMessage = R.string.openapsma_max_basal_summary, title = R.string.openapsma_max_basal_title))
                     addPreference(AdaptiveDoublePreference(ctx = context, doubleKey = DoubleKey.ApsSmbMaxIob, dialogMessage = R.string.openapssmb_max_iob_summary, title = R.string.openapssmb_max_iob_title))
                     addPreference(AdaptiveIntPreference(ctx = context, intKey = IntKey.fcl_stop_aggressiveness, dialogMessage = R.string.fcl_stop_aggressiveness_summary, title = R.string.fcl_stop_aggressiveness_title))

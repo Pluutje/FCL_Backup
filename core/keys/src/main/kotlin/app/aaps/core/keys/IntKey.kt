@@ -106,7 +106,7 @@ enum class IntKey(
     Advice_Interval_Hours("Advice_Interval_Hours", 24,1,48),
 
  //   enhanced_early_boost_perc("enhanced_early_boost_perc", 40,10,100),
-    min_minutes_between_bolus("min_minutes_between_bolus", 8,5,15),
+    min_minutes_between_bolus("min_minutes_between_bolus", 8,2,15),
     parameter_update_frequentie("parameter_update_frequentie", 24,8,72),
 
 }

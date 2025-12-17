@@ -14,7 +14,7 @@ class FCLLogging(private val context: Context) {
 
     private var lastCleanupCheck: DateTime? = null
     private val CLEANUP_CHECK_INTERVAL = 24 * 60 * 60 * 1000L // 24 uur
-    private val RETENTION_DAYS = 3 // ★★★ BEWAAR 3 DAGEN ★★★
+    private val RETENTION_DAYS = 4 // ★★★ BEWAAR 3 DAGEN ★★★
 
     // ★★★ GEÜNIFICEERDE LOGGING FUNCTIE ★★★
     fun logToAnalysisCSV(
@@ -38,35 +38,40 @@ class FCLLogging(private val context: Context) {
 
             val csvLine = buildString {
                 // Basis data
-                append("$dateStr,")
+                append("$dateStr;")
 
                 // BG data
-                append("${round(bg ?: currentData?.bg ?: 0.0, 1)},")
-                append("${round(iob ?: currentIOB ?: currentData?.iob ?: 0.0, 3)},")
-                append("${round(currentISF ?: 0.0, 1)},")
+                append("${round(bg ?: currentData?.bg ?: 0.0, 1)};")
+                append("${round(iob ?: currentIOB ?: currentData?.iob ?: 0.0, 3)};")
+                append("${round(currentISF ?: 0.0, 1)};")
 
-                // Bolus data
-                append("${round(dose ?: fclAdvice?.dose ?: 0.0, 2)},")
-                append("${round(fclAdvice?.dose ?: 0.0, 2)},") // lastCalculatedBolus
-                append("${fclAdvice?.shouldDeliverBolus ?: (dose != null && dose > 0.05)},")
-                append("${round(fclAdvice?.reservedDose ?: 0.0, 2)},")
+                // ★★★ ECHTE AAPS UITVOER ★★★
+                append("${round(fclAdvice?.bolusAmount ?: 0.0, 2)};")   // SMBBolus
+                append("${round(fclAdvice?.basalRate ?: 0.0, 2)};")    // TempBasal U/h
+
+                // ★★★ FCL INTENTIE ★★★
+                append("${round(fclAdvice?.dose ?: 0.0, 2)};")         // TotalDose (bolus + basaal omgerekend)
+                append("${round(fclAdvice?.reservedDose ?: 0.0, 2)};")
+
+                append("${fclAdvice?.shouldDeliverBolus ?: false};")
+                append("${phase ?: fclAdvice?.phase ?: "unknown"};")
 
                 // Reden (escape quotes)
                 val reasonText = reason ?: fclAdvice?.reason ?: ""
-                append("\"${reasonText.replace("\"", "'")}\",")
+                append("\"${reasonText.replace("\"", "'")}\";")
 
                 // Voorspelling en confidence
-                append("${fclAdvice?.predictedValue?.let { round(it, 1) } ?: "null"},")
-                append("${round(fclAdvice?.confidence ?: 0.0, 2)},")
-                append("${mealDetected ?: fclAdvice?.mealDetected ?: false},")
+                append("${fclAdvice?.predictedValue?.let { round(it, 1) } ?: "null"};")
+                append("${round(fclAdvice?.confidence ?: 0.0, 2)};")
+                append("${mealDetected ?: fclAdvice?.mealDetected ?: false};")
 
                 // Fase en carbs
-                append("${phase ?: fclAdvice?.phase ?: "unknown"},")
-                append("${round(detectedCarbs ?: fclAdvice?.detectedCarbs ?: 0.0, 1)},")
-                append("${round(fclAdvice?.carbsOnBoard ?: 0.0, 1)},")
+                append("${phase ?: fclAdvice?.phase ?: "unknown"};")
+                append("${round(detectedCarbs ?: fclAdvice?.detectedCarbs ?: 0.0, 1)};")
+                append("${round(fclAdvice?.carbsOnBoard ?: 0.0, 1)};")
 
                 // Target
-                append("${round(target ?: 0.0, 1)},")
+                append("${round(target ?: 0.0, 1)};")
 
                 // Blocked reason - alleen vullen als shouldDeliverBolus false is
                 val shouldDeliver = fclAdvice?.shouldDeliverBolus ?: (dose != null && dose > 0.05)
@@ -158,7 +163,7 @@ class FCLLogging(private val context: Context) {
             val filteredLines = dataLines.filter { line ->
                 try {
                     // Extract date from first column (format: "dd-MM-yyyy HH:mm")
-                    val datePart = line.substringBefore(',')
+                    val datePart = line.substringBefore(';')
                     val lineDate = DateTime.parse(datePart,
                                                   org.joda.time.format.DateTimeFormat.forPattern("dd-MM-yyyy HH:mm"))
                     lineDate.isAfter(cutoffDate)
@@ -186,7 +191,12 @@ class FCLLogging(private val context: Context) {
         try {
             if (!csvFile.exists() || csvFile.length() == 0L) {
                 // ★★★ EXACTE HEADER STRUCTUUR VOOR PARSING ★★★
-                val header = "Timestamp,CurrentBG,CurrentIOB,CurrentISF,Dose,LastCalculatedBolus,ShouldDeliver,ReservedDose,Reason,PredictedValue,Confidence,MealDetected,Phase,DetectedCarbs,CarbsOnBoard,Target,BlockedReason\n"
+                val header =
+                    "Timestamp;BG;IOB;ISF;" +
+                        "SMBBolus;TempBasalRate;TotalDose;ReservedDose;" +
+                        "ShouldDeliver;Phase;Reason;" +
+                        "PredictedValue;Confidence;MealDetected;DetectedCarbs;CarbsOnBoard;Target;BlockedReason\n"
+
                 csvFile.writeText(header)
             }
         } catch (e: Exception) {

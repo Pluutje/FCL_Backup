@@ -79,11 +79,11 @@ class FCLResistance(
         var log_resistentie = ""
 
         if (!preferences.get(BooleanKey.Resistentie)) {
-            log_resistentie = " → resistentie switched off " + "\n"
+            log_resistentie = " → correctie: ❌ O̶F̶F̶ " + "\n"
             return ResistentieResult(1.0, log_resistentie)
         }
 
-        log_resistentie = " → resistentie switched on " + "\n"
+        log_resistentie = " → correctie: ✅ ON " + "\n"
 
         val MinresistentiePerc = preferences.get(IntKey.Min_resistentiePerc)
         val MaxresistentiePerc = preferences.get(IntKey.Max_resistentiePerc)

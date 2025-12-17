@@ -229,9 +229,9 @@ class FCLPersistent(
     fun getPersistentStatus(): String {
         var PersiOnOff = ""
         if (preferences.get(BooleanKey.PersistentAanUit)) {
-            PersiOnOff = " - Persistent Bg detection switched ON"
+            PersiOnOff = " - Persistent correctie: ✅ ON"
         } else {
-            PersiOnOff = " - Persistent Bg detection switched OFF"
+            PersiOnOff = " - Persistent correctie: ❌ O̶F̶F̶"
         }
 
         return """

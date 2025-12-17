@@ -119,4 +119,5 @@ enum class BooleanKey(
     stappenAanUit("stappenAanUit",true),
     auto_parameter_update("auto_parameter_update",false),
     ResetLearning("ResetLearning",false),
+    BlockSMBnacht("SMBnacht",false),
 }

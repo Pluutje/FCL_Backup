@@ -76,9 +76,23 @@ enum class DoubleKey(
     phase_early_rise_accel("phase_early_rise_accel", 0.2,0.05,0.5),
     phase_min_consistency("phase_min_consistency", 0.6,0.3,0.9),
 
-
-
     data_smoothing_alpha("data_smoothing_alpha", 0.4,0.1,0.8),
     direction_consistency_threshold("direction_consistency_threshold", 0.7,0.3,0.9),
 
+    // FCL vNext
+    fcl_vnext_k_delta("fcl_vnext_k_delta", 1.0,0.3,1.5),
+    fcl_vnext_k_slope("fcl_vnext_k_slope", 0.6,0.0,1.5),
+    fcl_vnext_k_accel("fcl_vnext_k_accel", 0.3,0.0,1.0),
+    fcl_vnext_min_consistency("fcl_vnext_min_consistency", 0.25,0.0,0.6),
+    fcl_vnext_consistency_exp("fcl_vnext_consistency_exp", 1.0,0.5,2.0),
+    fcl_vnext_iob_start("fcl_vnext_iob_start", 0.4,0.2,0.7),
+    fcl_vnext_iob_max("fcl_vnext_iob_max", 0.9,0.7,1.2),
+    fcl_vnext_iob_min_factor("fcl_vnext_iob_min_factor", 0.15,0.05,0.4),
+    fcl_vnext_gain_day("fcl_vnext_gain_day", 1.0,0.3,2.0),
+    fcl_vnext_gain_night("fcl_vnext_gain_night", 0.7,0.2,1.5),
+
+    fcl_vnext_persistent_delta_target("fcl_vnext_persistent_delta_target", 1.5,1.0,3.0),
+    fcl_vnext_persistent_fraction("fcl_vnext_persistent_fraction", 0.1,0.05,0.25),
+    fcl_vnext_persistent_max_slope("fcl_vnext_persistent_max_slope", 0.4,0.2,0.8),
+    fcl_vnext_persistent_iob_limit("fcl_vnext_persistent_iob_limit", 0.6,0.4,0.8),
 }

@@ -639,6 +639,39 @@ open class OpenAPSFCLPlugin @Inject constructor(
                 }
                 addPreference(VEILIGHEIDSINSTELLINGEN)
 
+                // 🛡️ VNEXTINSTELLINGEN
+                val VNEXTINSTELLINGEN = preferenceManager.createPreferenceScreen(context).apply {
+                    key = "VNEXTINSTELLINGEN"
+                    title = "\uD83D\uDEE1\uFE0F VNEXTINSTELLINGEN"
+                    initialExpandedChildrenCount = Int.MAX_VALUE
+
+                    addPreference(
+                        AdaptiveIntentPreference(
+                            ctx = context,
+                            intentKey = IntentKey.ApsLinkToDocs,
+                            intent = Intent().apply { action = Intent.ACTION_VIEW; data = Uri.parse(rh.gs(R.string.Info_fcl_1_VEILIGHEIDSINSTELLINGEN_doc)) },
+                            summary = R.string.Info_fcl_1_VEILIGHEIDSINSTELLINGEN
+                        )
+                    )
+                    addPreference(AdaptiveDoublePreference(ctx = context, doubleKey = DoubleKey.fcl_vnext_k_delta, dialogMessage = R.string.fcl_vnext_k_delta_summary, title = R.string.fcl_vnext_k_delta_title))
+                    addPreference(AdaptiveDoublePreference(ctx = context, doubleKey = DoubleKey.fcl_vnext_k_slope, dialogMessage = R.string.fcl_vnext_k_slope_summary, title = R.string.fcl_vnext_k_slope_title))
+                    addPreference(AdaptiveDoublePreference(ctx = context, doubleKey = DoubleKey.fcl_vnext_k_accel, dialogMessage = R.string.fcl_vnext_k_accel_summary, title = R.string.fcl_vnext_k_accel_title))
+                    addPreference(AdaptiveDoublePreference(ctx = context, doubleKey = DoubleKey.fcl_vnext_min_consistency, dialogMessage = R.string.fcl_vnext_min_consistency_summary, title = R.string.fcl_vnext_min_consistency_title))
+                    addPreference(AdaptiveDoublePreference(ctx = context, doubleKey = DoubleKey.fcl_vnext_consistency_exp, dialogMessage = R.string.fcl_vnext_consistency_exp_summary, title = R.string.fcl_vnext_consistency_exp_title))
+                    addPreference(AdaptiveDoublePreference(ctx = context, doubleKey = DoubleKey.fcl_vnext_iob_start, dialogMessage = R.string.fcl_vnext_iob_start_summary, title = R.string.fcl_vnext_iob_start_title))
+                    addPreference(AdaptiveDoublePreference(ctx = context, doubleKey = DoubleKey.fcl_vnext_iob_max, dialogMessage = R.string.fcl_vnext_iob_max_summary, title = R.string.fcl_vnext_iob_max_title))
+                    addPreference(AdaptiveDoublePreference(ctx = context, doubleKey = DoubleKey.fcl_vnext_iob_min_factor, dialogMessage = R.string.fcl_vnext_iob_min_factor_summary, title = R.string.fcl_vnext_iob_min_factor_title))
+                    addPreference(AdaptiveDoublePreference(ctx = context, doubleKey = DoubleKey.fcl_vnext_gain_day, dialogMessage = R.string.fcl_vnext_gain_day_summary, title = R.string.fcl_vnext_gain_day_title))
+                    addPreference(AdaptiveDoublePreference(ctx = context, doubleKey = DoubleKey.fcl_vnext_gain_night, dialogMessage = R.string.fcl_vnext_gain_night_summary, title = R.string.fcl_vnext_gain_night_title))
+
+                    addPreference(AdaptiveDoublePreference(ctx = context, doubleKey = DoubleKey.fcl_vnext_persistent_delta_target, dialogMessage = R.string.fcl_vnext_persistent_delta_target_summary, title = R.string.fcl_vnext_persistent_delta_target_title))
+                    addPreference(AdaptiveDoublePreference(ctx = context, doubleKey = DoubleKey.fcl_vnext_persistent_fraction, dialogMessage = R.string.fcl_vnext_persistent_fraction_summary, title = R.string.fcl_vnext_persistent_fraction_title))
+                    addPreference(AdaptiveDoublePreference(ctx = context, doubleKey = DoubleKey.fcl_vnext_persistent_max_slope, dialogMessage = R.string.fcl_vnext_persistent_max_slope_summary, title = R.string.fcl_vnext_persistent_max_slope_title))
+                    addPreference(AdaptiveDoublePreference(ctx = context, doubleKey = DoubleKey.fcl_vnext_persistent_iob_limit, dialogMessage = R.string.fcl_vnext_persistent_iob_limit_summary, title = R.string.fcl_vnext_persistent_iob_limit_title))
+
+                }
+                addPreference(VNEXTINSTELLINGEN)
+
 
                 // 💉 BOLUS & MAALTIJD INSTELLINGEN
                 val BOLUSMAALTIJDINSTELLINGEN = preferenceManager.createPreferenceScreen(context).apply {

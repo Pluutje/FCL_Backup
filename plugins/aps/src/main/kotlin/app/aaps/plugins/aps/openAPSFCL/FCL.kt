@@ -3330,33 +3330,32 @@ class FCL @Inject constructor(
             // metrics logging mag NOOIT FCL blokkeren
         }
 
+        // ★★★ EÉNMALIGE UPDATE ★★★
+        updateActivityFromSteps()
+        updateResistentieIndienNodig()
+        //  berekenStappenAdjustment()
+
+  // ─────────────────────────────────────────────
+  // FASE 0 — SETUP, METRICS & INPUT
+  // ─────────────────────────────────────────────
+
         try {
             val trends = analyzeTrends(historicalData)
-     // ─────────────────────────────────────────────
-    // DECISION LOCK — voorkomt overschrijven
-    // ─────────────────────────────────────────────
+ // ─────────────────────────────────────────────
+ // DECISION LOCK — voorkomt overschrijven
+ // ─────────────────────────────────────────────
 
             var maxBolus = getMaxBolus()
-
-            // ★★★ EÉNMALIGE UPDATE ★★★
-            updateActivityFromSteps()
-            updateResistentieIndienNodig()
-            //  berekenStappenAdjustment()
-
-
             val effectiveISF = getEffectiveISF()
             val effectiveTarget = getEffectiveTarget()
-
 
             // ★★★ ALTIJD ROBUUSTE FASE GEBRUIKEN ★★★
             val robustTrends = calculateRobustTrends(historicalData)
             val robustPhase = robustTrends.phase
 
-
             cleanUpMeals()
 
             val cobNow = getCarbsOnBoard()
-
             val basicAdvice = getInsulinAdvice(
                 currentData, historicalData,
                 effectiveISF, effectiveTarget, carbRatio, currentIOB, maxIOB
@@ -3364,6 +3363,7 @@ class FCL @Inject constructor(
 
             // Placeholders
             var finalDose = 0.0
+            var finalBolusAmount = 0.0
             var finalReason = ""
             var finalDeliver = false
             var finalMealDetected = false
@@ -3373,6 +3373,9 @@ class FCL @Inject constructor(
             var finalConfidence = 0.7  // vaste confidence, learning uit
             var predictedPeak = basicAdvice.predictedValue ?: currentData.bg
             var finalCOB = cobNow
+
+            var hybridPercentage = 0 // geen bolus als basaal default
+            var debugLog: String = ""
 
             var decisionLocked = false
             var decisionSource = ""
@@ -3422,29 +3425,10 @@ class FCL @Inject constructor(
                 decisionSource = phase
             }
 
-
-            /*   fun lockDecision(
-                   dose: Double,
-                   deliver: Boolean,
-                   reason: String,
-                   phase: String,
-                   confidence: Double = finalConfidence,
-                   mealDetected: Boolean = false,
-                   detectedCarbs: Double = 0.0
-               ) {
-                   if (decisionLocked) return
-
-                   finalDose = dose
-                   finalDeliver = deliver
-                   finalReason = reason
-                   finalPhase = phase
-                   finalConfidence = confidence
-                   finalMealDetected = mealDetected
-                   finalDetectedCarbs = detectedCarbs
-
-                   decisionLocked = true
-                   decisionSource = phase
-               }  */
+// ─────────────────────────────────────────────
+// FASE 1 — HARD DECISIONS (LOCK)
+// pre-safety & persistent
+// ─────────────────────────────────────────────
 
             val preSafety = runCentralSafetyGate(
                 stage = "pre",
@@ -3461,7 +3445,6 @@ class FCL @Inject constructor(
                 carbsOnBoard = cobNow,
                 plannedDose = 0.0
             )
-
 
             if (!preSafety.allowed) {
                 lockDecision(
@@ -3501,7 +3484,12 @@ class FCL @Inject constructor(
                 )
             }
 
+        if (!decisionLocked) {
 
+// ─────────────────────────────────────────────
+// FASE 2 — NORMALE BESLISSINGEN
+// (alleen uitvoeren als NIET gelockt)
+// ─────────────────────────────────────────────
 
             val mealResult = handleMealAndBolusDecision(
                 robustTrends = robustTrends,
@@ -3516,7 +3504,6 @@ class FCL @Inject constructor(
             )
 
 
-            if (!decisionLocked) {
                 finalDose = mealResult.dose
                 finalReservedBolus = mealResult.reservedBolus
                 finalDeliver = mealResult.deliver
@@ -3525,7 +3512,7 @@ class FCL @Inject constructor(
                 finalDetectedCarbs = mealResult.detectedCarbs
                 finalMealDetected = mealResult.mealDetected
                 finalConfidence = mealResult.confidence
-            }
+
 
 
 
@@ -3668,8 +3655,7 @@ class FCL @Inject constructor(
 
 
 // ★★★ VEILIGE WISKUNDIGE BOLUS LOGICA ★★★
-            if (!decisionLocked &&
-                robustTrends.consistency > preferences.get(DoubleKey.phase_min_consistency) &&
+            if (robustTrends.consistency > preferences.get(DoubleKey.phase_min_consistency) &&
                 mathBolusAdvice.immediatePercentage > 0 &&
                 detectedCarbs > 0
             ) {
@@ -3699,7 +3685,7 @@ class FCL @Inject constructor(
                 )
                 var finalReservedBolus = reservedBolus
 
-                if (!decisionLocked && (robustTrends.consistency > 0.7 || detectedCarbs > 20)) {
+                if ((robustTrends.consistency > 0.7 || detectedCarbs > 20)) {
                     finalDose = finalImmediateBolus
                     finalReservedBolus = finalReservedBolus
                     finalReason = bolusReason
@@ -3731,7 +3717,7 @@ class FCL @Inject constructor(
                 detectedCarbs = finalDetectedCarbs
             )
 
-            if (!decisionLocked && shouldLimitByIOB) {
+            if (shouldLimitByIOB) {
                 val originalDose = finalDose
                 finalDose = iobSafeDose
 
@@ -3754,7 +3740,7 @@ class FCL @Inject constructor(
                 else -> true
             }
 
-            if (!decisionLocked && shouldAllowMealOverride) {
+            if (shouldAllowMealOverride) {
                 val dynamicMealBolus = calculateDynamicBolusForMeal(
                     currentBG = currentData.bg,
                     targetBG = effectiveTarget,
@@ -3806,7 +3792,7 @@ class FCL @Inject constructor(
             val shouldAdjust = shouldAdjustOrCancelBolus(historicalData, mealState)
 
             // Safety: blokkeer bij sensor errors
-            if (!decisionLocked && sensorIssue != null) {
+            if (sensorIssue != null) {
                 lockDecision(
                     dose = 0.0,
                     deliver = false,
@@ -3824,7 +3810,7 @@ class FCL @Inject constructor(
 
 
             // Meal detection wanneer BG boven target is
-            else if (!decisionLocked && mealState != MealDetectionState.NONE && !sensorError && finalDeliver) {
+            else if (mealState != MealDetectionState.NONE && !sensorError && finalDeliver) {
                 val mealConfidence = calculateMealConfidence(historicalData, detectedCarbs)
 
                 if (mealConfidence > 0.4 && isLikelyMeal && detectedCarbs > 15 &&
@@ -3867,7 +3853,7 @@ class FCL @Inject constructor(
             }
 
             // Safety check voor extreme stijgingen
-            else if (!decisionLocked && !isLikelyMeal && detectedCarbs < 15) {
+            else if (!isLikelyMeal && detectedCarbs < 15) {
                 val iobCapacity = maxIOB - currentIOB
                 val hasIOBCapacity = iobCapacity > 0.5
                 val isExtremeRise = robustTrends.phase in listOf("early_rise", "mid_rise") &&
@@ -3897,13 +3883,13 @@ class FCL @Inject constructor(
             }
 
             // Safety: pas aan bij tegenvallende stijging
-            else if (!decisionLocked && shouldAdjust && mealInProgress) {
+            else if (shouldAdjust && mealInProgress) {
                 finalMealDetected = true
                 finalDetectedCarbs = detectedCarbs * 0.5
             }
 
             // GEFASEERDE MEAL PROCESSING MET IOB REDUCTIE
-            else if (!decisionLocked && mealState != MealDetectionState.NONE && !sensorError && !finalMealDetected) {
+            else if (mealState != MealDetectionState.NONE && !sensorError && !finalMealDetected) {
                 val mealConfidence = calculateMealConfidence(historicalData, detectedCarbs)
 
                 if (mealConfidence > 0.4 && detectedCarbs > 10) {
@@ -3967,7 +3953,7 @@ class FCL @Inject constructor(
             }
 
 // ★★★ FREQUENTE BOLUS CHECK MET PHASED MANAGEMENT ★★★
-            if (!decisionLocked && !canDeliverFrequentBolus && finalDeliver && finalDose > 0) {
+            if (!canDeliverFrequentBolus && finalDeliver && finalDose > 0) {
                 // Alleen blokkeren bij DALENDE trend of zeer frequente bolussen
                 if (robustTrends.firstDerivative < 0.5 || !canDeliverVeryFrequent) {
                     finalDose = 0.0
@@ -3992,7 +3978,7 @@ class FCL @Inject constructor(
             decayReservedBolusOverTime()
 
 // ★★★ FREQUENTE RESERVED BOLUS RELEASE ★★★
-            if (!decisionLocked && pendingReservedBolus > 0.1) {
+            if (pendingReservedBolus > 0.1) {
                 val releasedBolus = calculateDynamicReservedBolusRelease(
                     currentBG = currentData.bg,
                     targetBG = effectiveTarget,
@@ -4013,7 +3999,7 @@ class FCL @Inject constructor(
             }
 
             // ★★★ IOB VERIFICATION SYSTEM - Voorkom missed bolus ★★★
-            if (!decisionLocked && finalDeliver && finalDose > 0.1) {
+            if (finalDeliver && finalDose > 0.1) {
                 val shouldActuallyDeliver = verifyBolusDelivery(
                     expectedBolus = finalDose,
                     currentIOB = currentIOB,
@@ -4034,7 +4020,7 @@ class FCL @Inject constructor(
             }
 
             // Correction (alleen als GEEN maaltijd gedetecteerd)
-            else if (!decisionLocked && !finalMealDetected && currentData.bg > effectiveTarget + 0.5) {
+            else if (!finalMealDetected && currentData.bg > effectiveTarget + 0.5) {
                 var correctionDose = getMathematicalCorrectionDose(
                     robustTrends = robustTrends,
                     currentBG = currentData.bg,
@@ -4102,7 +4088,7 @@ class FCL @Inject constructor(
             }
 
             // Geen actie
-            else if (!decisionLocked && !finalMealDetected) {
+            else if (!finalMealDetected) {
                 finalDose = 0.0
                 finalReason = "No action: BG=${"%.1f".format(currentData.bg)} ~ target=${"%.1f".format(effectiveTarget)}"
                 finalPhase = "stable"
@@ -4111,11 +4097,11 @@ class FCL @Inject constructor(
             }
 
             // Early Boost logic
-            if (!decisionLocked) {
-                predictedPeak = basicAdvice.predictedValue ?: (currentData.bg + 2.0)
-            }
 
-            if (!decisionLocked && currentData.bg in 8.0..9.9 && predictedPeak > 10.0) {
+             predictedPeak = basicAdvice.predictedValue ?: (currentData.bg + 2.0)
+
+
+            if (currentData.bg in 8.0..9.9 && predictedPeak > 10.0) {
                 val doseBeforeBoost = finalDose // Bewaar de dosis voor vergelijking
                 finalDose = calculateEnhancedEarlyBoost(
                     currentBG = currentData.bg,
@@ -4133,7 +4119,7 @@ class FCL @Inject constructor(
             }
 
             // Voorspelling leegmaken bij dalende trend
-            if (!decisionLocked && trends.recentTrend <= 0.0) {
+            if (trends.recentTrend <= 0.0) {
                 predictedPeak = currentData.bg
                 finalReason += " | No prediction (falling/stable trend)"
             }
@@ -4186,7 +4172,7 @@ class FCL @Inject constructor(
             lastShouldDeliver = finalDeliver
 
             // ★★★ BOUW DEBUG LOG VOOR CSV ★★★
-            val debugLog = StringBuilder().apply {
+            debugLog = StringBuilder().apply {
                 append("MealDetect: $lastMealDetectionDebug")
                 append(" | COB: $lastCOBDebug")
                 append(" | Reserved: $lastReservedBolusDebug")
@@ -4199,9 +4185,9 @@ class FCL @Inject constructor(
 
             // **********************************************************************************88888
 // ★★★ HYBRIDE BASAAL BEREKENING - VERBETERDE CONTINUÏTEIT ★★★
-            var finalBolusAmount = finalDose
+            finalBolusAmount = finalDose
             finalBasalRate = 0.0
-            val hybridPercentage = preferences.get(IntKey.hybrid_basal_perc)
+            hybridPercentage = preferences.get(IntKey.hybrid_basal_perc)
 
             val now = DateTime.now()
 
@@ -4236,27 +4222,25 @@ class FCL @Inject constructor(
                     )
 
                     if (!criticalStop) {
-                        if (!decisionLocked) {
-                            finalDeliver = true
-                            // Bereken hoeveel basaal er al is afgegeven
-                            val elapsedMinutes = 10 - minutesRemaining
-                            val progress = elapsedMinutes / 10.0
-                            val basalAlreadyDelivered = initialHybridBasalAmount * progress
-                            finalReason += " | Hybrid basal continuing: ${round(basalAlreadyDelivered, 2)}U/${round(initialHybridBasalAmount, 2)}U delivered (${minutesRemaining}min left)"
-                        }
+                        finalDeliver = true
+                        // Bereken hoeveel basaal er al is afgegeven
+                        val elapsedMinutes = 10 - minutesRemaining
+                        val progress = elapsedMinutes / 10.0
+                        val basalAlreadyDelivered = initialHybridBasalAmount * progress
+                        finalReason += " | Hybrid basal continuing: ${round(basalAlreadyDelivered, 2)}U/${round(initialHybridBasalAmount, 2)}U delivered (${minutesRemaining}min left)"
+
                     } else {
                         // veiligheid mag hybrid state stoppen, maar beslissing niet overschrijven als locked
                         hybridBasalActiveUntil = null
                         finalBasalRate = 0.0
-                        if (!decisionLocked) {
-                            finalDeliver = false
-                            finalReason += " | CRITICAL: Hybrid basal stopped for safety"
-                        }
+                        finalDeliver = false
+                        finalReason += " | CRITICAL: Hybrid basal stopped for safety"
+
                     }
 
                 }
 
-            } else if (!decisionLocked && hybridPercentage > 0 && finalMealDetected && finalDose > 0.3) {
+            } else if (hybridPercentage > 0 && finalMealDetected && finalDose > 0.3) {
                 // ★★★ SAFE HYBRIDE MODUS START ★★★
                 val totalInsulin = finalDose
 
@@ -4300,7 +4284,7 @@ class FCL @Inject constructor(
 
             // ★★★ MAXIMUM TOTALE INSULIN CHECK - MET HOGE BG OVERRIDE ★★★
             val totalInsulinSoFar = phasedBolusManager.getTotalInsulinDelivered()
-            if (!decisionLocked && totalInsulinSoFar >= maxTotalMealInsulin) {
+            if (totalInsulinSoFar >= maxTotalMealInsulin) {
                 // ★★★ OVERRIDE: TOESTAAN BIJ ZEER HOGE BG ★★★
                 val shouldOverride = shouldAllowInsulinForHighBG(
                     currentBG = currentData.bg,
@@ -4320,6 +4304,25 @@ class FCL @Inject constructor(
                     finalDose *= 0.7
                     finalReason += " | High BG override (reduced to ${"%.2f".format(finalDose)}U)"
                 }
+            }
+
+
+
+
+        }
+// ─────────────────────────────────────────────
+// FASE 4 — LOCK OVERDRACHT (ABSOLUUT)
+// ─────────────────────────────────────────────
+
+
+            lockedDecision?.let {
+                finalDose = it.dose
+                finalDeliver = it.deliver
+                finalReason = it.reason
+                finalPhase = it.phase
+                finalConfidence = it.confidence
+                finalMealDetected = it.mealDetected
+                finalDetectedCarbs = it.detectedCarbs
             }
 
             if (!decisionLocked) {
@@ -4353,16 +4356,6 @@ class FCL @Inject constructor(
                         finalPhase = "rising_safety_relaxed"
                     }
                 }
-            }
-
-            lockedDecision?.let {
-                finalDose = it.dose
-                finalDeliver = it.deliver
-                finalReason = it.reason
-                finalPhase = it.phase
-                finalConfidence = it.confidence
-                finalMealDetected = it.mealDetected
-                finalDetectedCarbs = it.detectedCarbs
             }
 
             if (isNachtTime() && preferences.get(BooleanKey.BlockSMBnacht)) {

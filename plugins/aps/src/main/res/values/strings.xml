@@ -409,4 +409,34 @@
         <string name="Info_FCL_doc" translatable="false">https://docs.google.com/document/d/1276w2FhhqaGFjAccH8VlHJ0csGTDxkm1/edit?tab=t.0</string>
 
 
+    <!--    FCL vNext -->
+    <string name="fcl_vnext_k_delta_title">Effect van afstand tot target</string>
+    <string name="fcl_vnext_k_delta_summary">Bepaalt hoe sterk het verschil tussen actuele BG en target bijdraagt aan insuline.\nHoger = agressiever corrigeren bij hogere BG.\nLager = meer terughoudend, vooral bij lichte verhogingen.</string>
+    <string name="fcl_vnext_k_slope_title">Effect van stijgsnelheid</string>
+    <string name="fcl_vnext_k_slope_summary">Bepaalt hoeveel extra insuline wordt gegeven bij snel stijgende glucose.\nHoger = eerder en sterker ingrijpen bij stijgingen.\nLager = reactiever, minder voorspellend gedrag.</string>
+    <string name="fcl_vnext_k_accel_title">Effect van versnellende stijging</string>
+    <string name="fcl_vnext_k_accel_summary">Bepaalt hoe sterk het systeem anticipeert op een naderende piek.\nHoger = eerder insuline bij snel toenemende stijging.\nLager = minder anticipatie, meer afwachten.</string>
+    <string name="fcl_vnext_min_consistency_title">Minimale trendbetrouwbaarheid</string>
+    <string name="fcl_vnext_min_consistency_summary">Minimale trendbetrouwbaarheid.\nHoger = strenger, veiliger maar mogelijk trager.\nLager = toleranter voor ruis, maar meer risico.</string>
+    <string name="fcl_vnext_consistency_exp_title">Invloed betrouwbaarheid</string>
+    <string name="fcl_vnext_consistency_exp_summary">Bepaalt hoe sterk onbetrouwbare trends worden afgeremd.\nHoger = snelle afname van insuline bij twijfel.\nLager = mildere filtering.</string>
+    <string name="fcl_vnext_iob_start_title">Start IOB-remming</string>
+    <string name="fcl_vnext_iob_start_summary">Vanaf welk deel van maxIOB insuline geleidelijk wordt afgeremd.\nVanaf welk deel van maxIOB insuline geleidelijk wordt afgeremd.\nLager = eerder voorzichtig.</string>
+    <string name="fcl_vnext_iob_max_title">Maximale IOB-remming</string>
+    <string name="fcl_vnext_iob_max_summary">Bij deze IOB-ratio wordt insuline vrijwel volledig afgeremd.\nHoger = meer tolerantie voor hoge IOB.\nLager = striktere veiligheid.</string>
+    <string name="fcl_vnext_iob_min_factor_title">Minimale insuline bij hoge IOB</string>
+    <string name="fcl_vnext_iob_min_factor_summary">Laagste fractie van insuline die nog mag worden gegeven bij hoge IOB.\nHoger = minder scherpe afremming.\nLager = agressieve hypo-bescherming.</string>
+    <string name="fcl_vnext_gain_day_title">Dag-insulinegevoeligheid</string>
+    <string name="fcl_vnext_gain_day_summary">Algemene sterkte van FCL vNext overdag.\nHoger = meer insuline per situatie.\nLager = conservatiever.</string>
+    <string name="fcl_vnext_gain_night_title">Nacht-insulinegevoeligheid</string>
+    <string name="fcl_vnext_gain_night_summary">Algemene sterkte van FCL vNext specifiek voor de nacht.\nHoger = meer insuline s nachts.\nLager = minder insuline s nachts.</string>
+
+    <string name="fcl_vnext_persistent_delta_target_title">Persistent actief boven target</string>
+    <string name="fcl_vnext_persistent_delta_target_summary">Vanaf hoeveel mmol/L boven target het systeem persistent high BG activeert.\nHoger = alleen bij duidelijk verhoogde BG.\nLager = eerder kleine correcties.</string>
+    <string name="fcl_vnext_persistent_fraction_title">Fractie Persistent dosis tov van max SMB</string>
+    <string name="fcl_vnext_persistent_fraction_summary">Bepaalt hoe groot een enkele persistent correctie mag zijn als fractie van maxSMB.\nHoger = sterkere druk naar beneden.\nLager = voorzichtiger, meer verspreid.</string>
+    <string name="fcl_vnext_persistent_max_slope_title">Maximale BG-verandering bij persistent</string>
+    <string name="fcl_vnext_persistent_max_slope_summary">Persistent correcties zijn alleen toegestaan bij stabiele BG.\nHoger = actiever bij lichte stijging/daling.\nLager = alleen bij vrijwel vlakke BG.</string>
+    <string name="fcl_vnext_persistent_iob_limit_title">IOB-grens voor persistent</string>
+    <string name="fcl_vnext_persistent_iob_limit_summary">Maximale IOB waarbij persistent correcties nog zijn toegestaan.\nHoger = meer tolerantie voor opgebouwde IOB.\nLager = striktere hypo-bescherming.</string>
        </resources>

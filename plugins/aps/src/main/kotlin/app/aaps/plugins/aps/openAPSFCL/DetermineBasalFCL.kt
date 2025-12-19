@@ -33,6 +33,10 @@ import kotlin.math.min
 import kotlin.math.pow
 import kotlin.math.roundToInt
 import app.aaps.core.keys.Preferences
+import app.aaps.plugins.aps.openAPSFCL.vnext.FCLvNextDayNightHelper
+import app.aaps.plugins.aps.openAPSFCL.vnext.FCLvNext
+import app.aaps.plugins.aps.openAPSFCL.vnext.FCLvNextInput
+import app.aaps.plugins.aps.openAPSFCL.vnext.FCLvNextAdvice
 
 import org.joda.time.DateTime
 
@@ -41,6 +45,7 @@ import android.content.Context
 import org.joda.time.Hours
 import app.aaps.core.data.model.SC
 import app.aaps.plugins.aps.openAPSFCL.BGDataPoint
+import app.aaps.plugins.aps.openAPSFCL.vnext.FCLvNextStatusFormatter
 
 @Singleton
 
@@ -58,11 +63,11 @@ class DetermineBasalFCL @Inject constructor(
 ) {
 
 
+    private val fclMetrics = FCLMetrics(context = context,preferences = preferences,persistenceLayer = persistenceLayer)
+    private val fclActivityModule = FCLActivityModule(preferences = preferences,persistenceLayer = persistenceLayer,context = context)
+    private val fclResistance = FCLResistance(preferences = preferences,persistenceLayer = persistenceLayer,context = context)
+    private val fclvNext = FCLvNext(preferences)
 
-    private val fcl = FCL(profileUtil,fabricPrivacy,preferences,dateUtil,persistenceLayer,context)
-    private val FCLMetrics = FCLMetrics(context,preferences,persistenceLayer)
-
-    private var FCL_SMB: Double = 0.0
 
   //  private val prognosis = RealTimeBGPrognosis()
     private val consoleError = mutableListOf<String>()
@@ -187,10 +192,8 @@ class DetermineBasalFCL @Inject constructor(
 
  // *************************************************************************************************************
 
-    // FCL code ----------------------------------------------------------------
     private fun getHistoricalBGData(hoursBack: Int = 2): List<BGDataPoint> {
         val now = dateUtil.now()
-      //  val startTime = now - T.hours(hoursBack).msecs()
         val startTime = now - T.hours(2).msecs()
         val endTime = now
 
@@ -212,6 +215,7 @@ class DetermineBasalFCL @Inject constructor(
             }
     }
 
+/*
 
     fun getFCLAdvice(profile: OapsProfileFCL, iob_data_array: Array<IobTotal>, sens: Double, target: Double, BgNow: Double): FCL.EnhancedInsulinAdvice {
         try {
@@ -427,7 +431,7 @@ class DetermineBasalFCL @Inject constructor(
             android.util.Log.e("FCL_PARAMETERS", "Fout bij loggen parameters: ${e.message}")
         }
     }
-
+*/
 
 
 
@@ -576,18 +580,143 @@ class DetermineBasalFCL @Inject constructor(
         val maxDelta = max(glucose_status.delta, max(glucose_status.shortAvgDelta, glucose_status.longAvgDelta))
 
 // *************************************************************************************************************
-        var sens = profile.sens
+        // ─────────────────────────────────────────────
+        // FCL vNext – determineBasal integratie
+        // ─────────────────────────────────────────────
+            // ─────────────────────────────────────────────
+            // 0️⃣ BASIS INPUT UIT determineBasal
+            // ─────────────────────────────────────────────
+
+            val profile = profile      // OapsProfileFCL
+            val iobData = iob_data_array[0]
+            val currentIOB = iobData.iob
+
+            var sensMgdl: Double = profile.sens        // mg/dL per U
+            var targetMgdl: Double = target_bg         // mg/dL
+
+            // ─────────────────────────────────────────────
+            // 1️⃣ ACTIVITEIT (STAPPEN)
+            // ─────────────────────────────────────────────
+
+            val activity = fclActivityModule.evaluate()
+
+            // logging
+        //    consoleError.add(activity.log)
+
+            // ISF correctie door activiteit
+            sensMgdl /= (activity.insulinPercentage / 100.0)
+
+            // target correctie (mmol → mg/dL)
+            targetMgdl += activity.targetAdjust * 18.0
+
+
+            // ─────────────────────────────────────────────
+            // 2️⃣ DAG / NACHT + RESISTENTIE
+            // ─────────────────────────────────────────────
+
+            val dayNightHelper = FCLvNextDayNightHelper(preferences)
+            val isNight: Boolean = dayNightHelper.isNightNow()
+
+            fclResistance.updateResistentieIndienNodig(isNight)
+
+            val resistanceFactor: Double =
+                fclResistance.getCurrentResistanceFactor()
+
+            val resistanceLog: String =
+                fclResistance.getCurrentResistanceLog()
+
+        //    consoleError.add(resistanceLog)
+
+            // Resistentie corrigeert ALLEEN ISF
+            sensMgdl /= resistanceFactor
+
+
+            // ─────────────────────────────────────────────
+            // 3️⃣ BG HISTORY (mmol/L)
+            // ─────────────────────────────────────────────
+
+            // ─────────────────────────────────────────────
+            // 4️⃣ FCL vNext INPUT BOUWEN
+            // ─────────────────────────────────────────────
+
+            // ─────────────────────────────────────────────
+            // 5️⃣ FCL vNext BEREKENING
+            // ─────────────────────────────────────────────
 
 
 
-        val fclAdvice = getFCLAdvice(profile, iob_data_array, sens, target_bg, bg)
-        val effectiveISF = fclAdvice.effectiveISF
-        val step_target_corr = fclAdvice.Target_adjust
-        target_bg = target_bg + (step_target_corr * 18)
+            // ─────────────────────────────────────────────
+            // 6️⃣ OUTPUT → determineBasal
+            // ─────────────────────────────────────────────
 
 
 
-        sens = effectiveISF * 18
+
+            // ─────────────────────────────────────────────
+            // 7️⃣ LOGGING / STATUS
+            // ─────────────────────────────────────────────
+
+
+
+
+            // ─────────────────────────────────────────────
+            // 8️⃣ RETURN NAAR determineBasal
+            // ─────────────────────────────────────────────
+
+        var bolusAmount = 0.0
+        var basalRate = 0.0
+        var shouldDeliver = false
+
+        val bgHistoryPoints = getHistoricalBGData(2)
+
+        if (bgHistoryPoints.size >= 10) {
+            val bgHistoryMmol = bgHistoryPoints.map { it.timestamp to it.bg }
+            val bgNowMmol = bgHistoryMmol.last().second
+
+            val fclInput = FCLvNextInput(
+                bgNow = bgNowMmol,
+                bgHistory = bgHistoryMmol,
+                currentIOB = currentIOB,
+                maxIOB = profile.max_iob,
+                effectiveISF = sensMgdl / 18.0,
+                targetBG = targetMgdl / 18.0,
+                isNight = isNight
+            )
+
+            val advice = fclvNext.getAdvice(fclInput)
+
+            bolusAmount = advice.bolusAmount
+            basalRate = advice.basalRate
+            shouldDeliver = advice.shouldDeliver
+
+        //    advice.statusText.split("\n").forEach { consoleError.add(it) }
+        //    consoleError.add("\n")
+
+            val statusFormatter = FCLvNextStatusFormatter()
+
+            val uiText = statusFormatter.buildStatus(
+                isNight = isNight,
+                advice = advice,
+                bolusAmount = bolusAmount,
+                basalRate = basalRate,
+                shouldDeliver = shouldDeliver,
+                activityLog = activity.log,
+                resistanceLog = resistanceLog,
+                metricsText = fclMetrics?.getUserStatsString()
+            )
+
+            // naar console / UI
+            uiText.split("\n").forEach { consoleError.add(it) }
+            consoleError.add("\n")
+
+        } else {
+            consoleError.add("FCLvNext skipped: Need more BG data ${bgHistoryPoints.size}/10")
+        }
+
+
+
+
+        var sens = sensMgdl
 
 // *************************************************************************************************************
 
@@ -679,15 +808,15 @@ class DetermineBasalFCL @Inject constructor(
 
 
 
-        val statusText = fcl.getFCLStatus()
+    //    val statusText = fcl.getFCLStatus()
 
-        statusText.split("\n").forEach { line ->
-            consoleError.add(line)
-        }
-        consoleError.add("\n"+"\n")
+     //   statusText.split("\n").forEach { line ->
+     //       consoleError.add(line)
+     //   }
+     //   consoleError.add("\n"+"\n")
 
 
-        logFCLParameters()
+            //   logFCLParameters()
 
 
 
@@ -964,31 +1093,31 @@ class DetermineBasalFCL @Inject constructor(
 // *************************************************************************************************************************8
 
 
-        FCL_SMB = fclAdvice.bolusAmount
+        if ((bolusAmount > 0.0 || basalRate > 0.0) && shouldDeliver) {
 
-        if ((FCL_SMB > 0.0 || fclAdvice.basalRate > 0.0) && fclAdvice.shouldDeliverBolus) {
-
-            if (fclAdvice.basalRate > 0) {
+            if (basalRate > 0) {
                 // HYBRIDE MODE: Temp basaal + gereduceerde bolus
-                rT.reason.append("=> Hybrid: ${fclAdvice.hybridPercentage}% basaal | ")
-                rT.reason.append("SMB: ${round(fclAdvice.bolusAmount, 2)}U | ")
-                rT.reason.append("Temp: ${round(fclAdvice.basalRate, 2)}U/h ")
+                rT.reason.append("=> Hybrid: ${preferences.get(IntKey.hybrid_basal_perc)}% basaal | ")
+                rT.reason.append("SMB: ${round(bolusAmount, 2)}U | ")
+                rT.reason.append("Temp: ${round(basalRate, 2)}U/h ")
 
-                rT.rate = fclAdvice.basalRate
-                rT.units = FCL_SMB
+                rT.rate = basalRate
+                rT.units = bolusAmount
 
             } else {
                 // STANDARD MODE: Alleen bolus
-                rT.reason.append("=> Bolus perc: ${preferences.get(IntKey.bolus_perc_day)} SMB:  $FCL_SMB eh ")
-            //    FCL_SMB = Math.min(preferences.get(DoubleKey.max_bolus),FCL_SMB)
-                if (fclAdvice.detectedCarbs >99 ) {rT.rate = basal/2 } else {rT.rate = 0.0}
-                rT.units = FCL_SMB
+                rT.reason.append("=> Bolus perc: ${preferences.get(IntKey.bolus_perc_day)} SMB:  $bolusAmount eh ")
+
+                rT.rate = 0.0
+                rT.units = bolusAmount
             }
 
             rT.deliverAt = deliverAt
             rT.duration = 30
             return rT
         }
+
+
 // *************************************************************************************************************************8
 // *************************************************************************************************************************8
       //  consoleError.add("UAM Impact: $uci mg/dL per 5m; UAM Duration: $UAMduration hours")

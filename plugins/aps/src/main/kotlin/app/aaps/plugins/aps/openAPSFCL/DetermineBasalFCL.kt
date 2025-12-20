@@ -44,7 +44,7 @@ import android.content.Context
 
 import org.joda.time.Hours
 import app.aaps.core.data.model.SC
-import app.aaps.plugins.aps.openAPSFCL.BGDataPoint
+import app.aaps.plugins.aps.openAPSFCL.vnext.model.BGDataPoint
 import app.aaps.plugins.aps.openAPSFCL.vnext.FCLvNextStatusFormatter
 
 @Singleton

@@ -3,6 +3,7 @@ package app.aaps.plugins.aps.openAPSFCL.vnext
 import app.aaps.core.keys.DoubleKey
 import app.aaps.core.keys.IntKey
 import app.aaps.core.keys.Preferences
+import kotlin.Double
 
 data class FCLvNextConfig(
     // dynamiek
@@ -32,7 +33,29 @@ data class FCLvNextConfig(
     val persistentFraction: Double,
 
     // SMB safety
-    val maxSMB: Double
+    val maxSMB: Double,
+
+    // meal
+    val mealSlopeMin: Double,
+    val mealSlopeSpan: Double,
+
+    val mealAccelMin: Double,
+    val mealAccelSpan: Double,
+
+    val mealDeltaMin: Double,
+    val mealDeltaSpan: Double,
+
+    val mealUncertainConfidence: Double,
+    val mealConfirmConfidence: Double,
+
+    val commitCooldownMinutes: Int,
+
+    val uncertainMinFraction: Double,
+    val uncertainMaxFraction: Double,
+    val confirmMinFraction: Double,
+    val confirmMaxFraction: Double,
+
+    val minCommitDose: Double,
 )
 
 fun loadFCLvNextConfig(
@@ -78,7 +101,27 @@ fun loadFCLvNextConfig(
         persistentIobLimit = prefs.get(DoubleKey.fcl_vnext_persistent_iob_limit),
         persistentFraction = prefs.get(DoubleKey.fcl_vnext_persistent_fraction),
 
-        maxSMB = maxSMB
-    )
+        maxSMB = maxSMB,
 
+        // meal
+        mealSlopeMin = 0.8, // mmol/L/h
+        mealSlopeSpan = 0.8, //
+
+        mealAccelMin = 0.15, // mmol/L/h²
+        mealAccelSpan = 0.6,
+
+        mealDeltaMin = 0.8, // mmol/L
+        mealDeltaSpan = 1.0,
+
+        mealUncertainConfidence = 0.45,
+        mealConfirmConfidence = 0.7,
+
+        commitCooldownMinutes = 15,
+
+        uncertainMinFraction = 0.45,
+        uncertainMaxFraction = 0.70,
+        confirmMinFraction = 0.70,
+        confirmMaxFraction = 1.00,
+        minCommitDose = 0.3,
+    )
 }

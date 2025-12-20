@@ -27,15 +27,24 @@ class FCLMetrics(
      * Wordt aangeroepen vanuit FCL (mag no-op zijn voor nu).
      * We houden de signature zodat je FCL niet opnieuw hoeft te refactoren.
      */
-    fun onFiveMinuteTick(currentBG: Double, currentIOB: Double, context: FCL.FCLContext) {
-        // Alleen cache verversen voor UI.
-        // Logging gebeurt via logMetricsTick() vanuit FCL.kt.
+    fun onFiveMinuteTick(
+        currentBG: Double,
+        currentIOB: Double,
+        target: Double
+    ) {
         try {
+            logMetricsTick(
+                timestamp = DateTime.now(),
+                bg = currentBG,
+                iob = currentIOB,
+                target = target
+            )
             optimizationController.updateUserStatsCache()
         } catch (_: Exception) {
-            // nooit laten crashen
+            // nooit crashen
         }
     }
+
 
     /**
      * Wordt vanuit FCL aangeroepen om te loggen naar metrics CSV.
@@ -70,12 +79,7 @@ class FCLMetrics(
         }
     }
 
-    /**
-     * FCL riep dit bij jou aan; houden als no-op zodat je geen compile errors krijgt.
-     */
-    fun updateLastAdvice(advice: FCL.EnhancedInsulinAdvice) {
-        // Niet nodig voor metrics-only CSV
-    }
+
 
     data class GlucoseMetrics(
         val period: String,

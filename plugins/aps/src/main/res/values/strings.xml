@@ -14,7 +14,7 @@
     <string name="openapssmb">OpenAPS SMB</string>
     <string name="openaps_smb_dynamic_isf">Dynamic ISF</string>
     <string name="openaps_auto_isf">Auto ISF</string>
-    <string name="openaps_fcl">FCL</string>
+    <string name="openaps_fcl">FCL v2</string>
     <string name="smb_interval_summary">How frequently SMBs will be given in min</string>
     <string name="resistance_lowers_target_title">Resistance lowers target</string>
     <string name="resistance_lowers_target_summary">When resistance is detected, lower the target glucose</string>
@@ -283,8 +283,7 @@
     <string name="CarbISF_max_Factor_summary">Maximum correctiefactor waarmee de ISF en CarbRatio wordt gecorrigeerdtijdens het leerproces</string>
     <string name="CarbISF_max_Factor_title">Maximum ISF_CR Learningfactor</string>
 
-    <string name="hybrid_basal_perc_summary">Percentage van bolus dat als tijdelijke basaal wordt afgegeven. [0% - 100%). Zorg voor efficientere opname en bij grote bolussen voor minder kans op verstoppping.</string>
-    <string name="hybrid_basal_perc_title">Hybride basaal percentage  [%]</string>
+
     <string name="bolus_perc_day_summary">Bolus-percentage deliverd during DAY-Time.</string>
     <string name="bolus_perc_day_title">Bolus percentage dag [%]</string>
     <string name="bolus_perc_night_summary">Bolus-percentage deliverd during NIGHT-Time</string>
@@ -308,10 +307,8 @@
     <string name="bolus_perc_late_summary">Bolus-percentage deliverd during LATE meal detection</string>
     <string name="bolus_perc_late_title">Bolus percentage late-rise [%]</string>
 
-    <string name="max_bolus_day_summary">Maximum SMB-bolus die overdag kan worden afgegeven</string>
-    <string name="max_bolus_day_title">Max Bolus overdag[eh]</string>
-    <string name="max_bolus_night_summary">Maximum SMB-bolus die snachts kan worden afgegeven</string>
-    <string name="max_bolus_night_title">Max Bolus nacht [eh]</string>
+
+
     <string name="BlockSMBnacht_summary">Indien ingeschakeld worden er snachts geen SMB afgegeven</string>
     <string name="BlockSMBnacht_title">Blokker nacht SMB</string>
     <string name="IOB_corr_perc_summary">Percentage IOB correction for bolus calculation. Higher number = more bolus</string>
@@ -410,26 +407,9 @@
 
 
     <!--    FCL vNext -->
-    <string name="fcl_vnext_k_delta_title">Effect van afstand tot target</string>
-    <string name="fcl_vnext_k_delta_summary">Bepaalt hoe sterk het verschil tussen actuele BG en target bijdraagt aan insuline.\nHoger = agressiever corrigeren bij hogere BG.\nLager = meer terughoudend, vooral bij lichte verhogingen.</string>
-    <string name="fcl_vnext_k_slope_title">Effect van stijgsnelheid</string>
-    <string name="fcl_vnext_k_slope_summary">Bepaalt hoeveel extra insuline wordt gegeven bij snel stijgende glucose.\nHoger = eerder en sterker ingrijpen bij stijgingen.\nLager = reactiever, minder voorspellend gedrag.</string>
-    <string name="fcl_vnext_k_accel_title">Effect van versnellende stijging</string>
-    <string name="fcl_vnext_k_accel_summary">Bepaalt hoe sterk het systeem anticipeert op een naderende piek.\nHoger = eerder insuline bij snel toenemende stijging.\nLager = minder anticipatie, meer afwachten.</string>
-    <string name="fcl_vnext_min_consistency_title">Minimale trendbetrouwbaarheid</string>
-    <string name="fcl_vnext_min_consistency_summary">Minimale trendbetrouwbaarheid.\nHoger = strenger, veiliger maar mogelijk trager.\nLager = toleranter voor ruis, maar meer risico.</string>
-    <string name="fcl_vnext_consistency_exp_title">Invloed betrouwbaarheid</string>
-    <string name="fcl_vnext_consistency_exp_summary">Bepaalt hoe sterk onbetrouwbare trends worden afgeremd.\nHoger = snelle afname van insuline bij twijfel.\nLager = mildere filtering.</string>
-    <string name="fcl_vnext_iob_start_title">Start IOB-remming</string>
-    <string name="fcl_vnext_iob_start_summary">Vanaf welk deel van maxIOB insuline geleidelijk wordt afgeremd.\nVanaf welk deel van maxIOB insuline geleidelijk wordt afgeremd.\nLager = eerder voorzichtig.</string>
-    <string name="fcl_vnext_iob_max_title">Maximale IOB-remming</string>
-    <string name="fcl_vnext_iob_max_summary">Bij deze IOB-ratio wordt insuline vrijwel volledig afgeremd.\nHoger = meer tolerantie voor hoge IOB.\nLager = striktere veiligheid.</string>
-    <string name="fcl_vnext_iob_min_factor_title">Minimale insuline bij hoge IOB</string>
-    <string name="fcl_vnext_iob_min_factor_summary">Laagste fractie van insuline die nog mag worden gegeven bij hoge IOB.\nHoger = minder scherpe afremming.\nLager = agressieve hypo-bescherming.</string>
-    <string name="fcl_vnext_gain_day_title">Dag-insulinegevoeligheid</string>
-    <string name="fcl_vnext_gain_day_summary">Algemene sterkte van FCL vNext overdag.\nHoger = meer insuline per situatie.\nLager = conservatiever.</string>
-    <string name="fcl_vnext_gain_night_title">Nacht-insulinegevoeligheid</string>
-    <string name="fcl_vnext_gain_night_summary">Algemene sterkte van FCL vNext specifiek voor de nacht.\nHoger = meer insuline s nachts.\nLager = minder insuline s nachts.</string>
+
+
+
 
     <string name="fcl_vnext_persistent_delta_target_title">Persistent actief boven target</string>
     <string name="fcl_vnext_persistent_delta_target_summary">Vanaf hoeveel mmol/L boven target het systeem persistent high BG activeert.\nHoger = alleen bij duidelijk verhoogde BG.\nLager = eerder kleine correcties.</string>
@@ -439,4 +419,119 @@
     <string name="fcl_vnext_persistent_max_slope_summary">Persistent correcties zijn alleen toegestaan bij stabiele BG.\nHoger = actiever bij lichte stijging/daling.\nLager = alleen bij vrijwel vlakke BG.</string>
     <string name="fcl_vnext_persistent_iob_limit_title">IOB-grens voor persistent</string>
     <string name="fcl_vnext_persistent_iob_limit_summary">Maximale IOB waarbij persistent correcties nog zijn toegestaan.\nHoger = meer tolerantie voor opgebouwde IOB.\nLager = striktere hypo-bescherming.</string>
-       </resources>
+
+
+
+    <string name="fcl_vnext_gain_day_title">Daggevoeligheid insuline</string>
+    <string name="fcl_vnext_gain_day_summary">Algemene sterkte van FCL vNext overdag.\nHoger = meer insuline per situatie.\nLager = behoudender en rustiger gedrag.</string>
+    <string name="fcl_vnext_gain_night_title">Nachtgevoeligheid insuline</string>
+    <string name="fcl_vnext_gain_night_summary">Algemene sterkte van FCL vNext tijdens de nacht.\nHoger = actiever corrigeren.\nLager = extra voorzichtig voor hypo-bescherming.</string>
+    <string name="max_bolus_day_title">Maximale bolus overdag</string>
+    <string name="max_bolus_day_summary">Maximale hoeveelheid insuline die FCL vNext in één actie overdag mag toedienen.\nBeperkt risico bij foutdetectie of ruis.</string>
+    <string name="max_bolus_night_title">Maximale bolus nacht</string>
+    <string name="max_bolus_night_summary">Maximale hoeveelheid insuline die FCL vNext ’s nachts in één actie mag toedienen.\nExtra bescherming tegen nachtelijke hypo’s.</string>
+    <string name="hybrid_basal_perc_title">Hybride basaal percentage</string>
+    <string name="hybrid_basal_perc_summary">Percentage van de berekende dosis dat als tijdelijke basaal wordt afgegeven.\nHoger = gespreidere opname, minder scherpe pieken.\nLager = meer directe boluswerking.</string>
+    <string name="fcl_vnext_k_delta_title">Effect afstand tot target</string>
+    <string name="fcl_vnext_k_delta_summary">Bepaalt hoe sterk een hogere BG boven target bijdraagt aan extra insuline.\nHoger = agressiever corrigeren.\nLager = meer focus op trends dan absolute waarde.</string>
+    <string name="fcl_vnext_k_slope_title">Effect stijgsnelheid</string>
+    <string name="fcl_vnext_k_slope_summary">Bepaalt hoeveel extra insuline wordt gegeven bij een snel stijgende BG.\nHoger = eerder ingrijpen bij maaltijden.\nLager = reactiever en rustiger gedrag.</string>
+    <string name="fcl_vnext_k_accel_title">Effect versnelling</string>
+    <string name="fcl_vnext_k_accel_summary">Bepaalt hoe sterk het systeem anticipeert op een naderende piek.\nHoger = eerder voor de piek insuline.\nLager = meer afwachten tot stijging duidelijk is.</string>
+    <string name="fcl_vnext_min_consistency_title">Minimale trendbetrouwbaarheid</string>
+    <string name="fcl_vnext_min_consistency_summary">Minimale betrouwbaarheid van de BG-trend voordat insuline mag worden gegeven.\nHoger = veiliger maar trager.\nLager = gevoeliger voor ruis.</string>
+    <string name="fcl_vnext_consistency_exp_title">Afremming bij onzekerheid</string>
+    <string name="fcl_vnext_consistency_exp_summary">Bepaalt hoe sterk onbetrouwbare trends worden afgeremd.\nHoger = snelle afname van insuline bij twijfel.\nLager = mildere afremming.</string>
+    <string name="fcl_vnext_iob_start_title">Start IOB-afremming</string>
+    <string name="fcl_vnext_iob_start_summary">Vanaf welk deel van de maximale IOB extra insuline geleidelijk wordt afgeremd.\nLager = eerder voorzichtig.</string>
+    <string name="fcl_vnext_iob_max_title">Maximale IOB-afremming</string>
+    <string name="fcl_vnext_iob_max_summary">IOB-niveau waarbij nieuwe insuline vrijwel volledig wordt tegengehouden.\nLager = strengere hypo-bescherming.</string>
+    <string name="fcl_vnext_iob_min_factor_title">Minimum insuline bij hoge IOB</string>
+    <string name="fcl_vnext_iob_min_factor_summary">Laagste fractie van insuline die nog mag worden toegediend bij hoge IOB.\nLager = agressievere afremming.</string>
+    <string name="fcl_vnext_absorption_window_minutes_title">Absorptievenster na bolus</string>
+    <string name="fcl_vnext_absorption_window_minutes_summary">Tijd na een bolus waarin het systeem aanneemt dat insuline actief wordt.\nBinnen dit venster kan dosering worden afgeremd rond de piek.</string>
+    <string name="fcl_vnext_absorption_dose_factor_title">Doseringsfactor tijdens absorptie</string>
+    <string name="fcl_vnext_absorption_dose_factor_summary">Factor waarmee insuline wordt gereduceerd tijdens actieve absorptie.\0 = volledige stop, 1 = geen reductie.</string>
+    <string name="fcl_vnext_bg_smoothing_alpha_title">BG smoothing factor</string>
+    <string name="fcl_vnext_bg_smoothing_alpha_summary">Mate van gladmaken van CGM-ruis vóór trendberekening.\nHoger = rustiger maar trager.\nLager = sneller maar gevoeliger.</string>
+
+    <string name="fcl_vnext_stagnation_delta_min_title">Nasleep activering boven target</string>
+    <string name="fcl_vnext_stagnation_delta_min_summary">Minimale BG-afwijking boven target waarbij het systeem extra blijft corrigeren na een maaltijd.\nHoger = alleen bij duidelijke hyperglycemie.\nLager = sneller extra druk.</string>
+    <string name="fcl_vnext_stagnation_slope_max_neg_title">Nasleep: maximale daling</string>
+    <string name="fcl_vnext_stagnation_slope_max_neg_summary">Maximale dalingssnelheid waarbij BG nog als “blijft hangen” wordt beschouwd.\n meer negatief = ook bij duidelijke daling nog actief.</string>
+    <string name="fcl_vnext_stagnation_slope_max_pos_title">Nasleep: maximale stijging</string>
+    <string name="fcl_vnext_stagnation_slope_max_pos_summary">Maximale stijgsnelheid waarbij BG nog als nasleep wordt gezien.\nHoger = ook lichte herstijging toegestaan.</string>
+    <string name="fcl_vnext_stagnation_energy_boost_title">Nasleep correctie-sterkte</string>
+    <string name="fcl_vnext_stagnation_energy_boost_summary">Extra correctiedruk per mmol boven target tijdens BG-stagnatie na een maaltijd.\nHoger = actiever doorbreken van aanhoudend hoge BG.</string>
+
+    <string name="fcl_vnext_stagnation_accel_max_abs_title">Maximale versnelling bij stagnatie</string>
+    <string name="fcl_vnext_stagnation_accel_max_abs_summary">Bepaalt hoe vlak de BG-versnelling moet zijn om stagnatie te detecteren./nLagere waarde = alleen echte plateaus./nHogere waarde = sneller extra druk bij lichte beweging.</string>
+
+
+
+
+
+
+    <!-- ===============================
+     FCL vNext – Startpagina
+     =============================== -->
+
+    <string name="fcl_vnext_intro_text">FCL vNext is een geavanceerd algoritme dat automatisch insuline aanpast op basis van glucoseverloop, betrouwbaarheid van data en context (zoals dag/nacht, activiteit en resistentie).\nVoor de meeste gebruikers zijn alleen de kerninstellingen relevant.\nFCL vNext doseert op basis van delta tot target, stijgsnelheid en versnelling, met IOB-remming en extra “stagnatie”-druk als glucose na een maaltijd blijft hangen.</string>
+    <string name="fcl_vnext_docs_overview_title">📄 Meer uitleg over FCL vNext</string>
+    <string name="fcl_vnext_docs_overview_summary">Klik hier voor een overzichtsdocument met uitleg over het algoritme, de filosofie en alle parameters.</string>
+    <string name="fcl_vnext_docs_overview_url">https://docs.google.com/document/d/PLACEHOLDER_FCL_VNEXT_OVERVIEW</string>
+
+
+    <!-- ===============================
+     Algemeen gedrag
+     =============================== -->
+
+    <string name="fcl_vnext_general_intro">Deze instellingen bepalen hoe actief FCL vNext insuline toedient bij stijgende glucosewaarden.\nWijzig deze parameters alleen als je begrijpt wat het effect is; kleine aanpassingen kunnen al merkbaar verschil maken.</string>
+    <string name="fcl_vnext_general_docs_title">📄 Uitleg Algemeen gedrag</string>
+    <string name="fcl_vnext_general_docs_summary">Uitgebreide uitleg over de doelstelling en werking van alle parameters binnen Algemeen gedrag.</string>
+    <string name="fcl_vnext_general_docs_url">https://docs.google.com/document/d/PLACEHOLDER_FCL_VNEXT_GENERAL</string>
+
+    <!-- ===============================
+         Profielen & context
+         =============================== -->
+
+    <string name="fcl_vnext_profiles_intro">Deze instellingen beschrijven jouw persoonlijke context.\nZe worden meestal éénmalig ingesteld en bepalen hoe FCL vNext zich aanpast aan dag/nacht, insulineresistentie en lichamelijke activiteit.</string>
+
+    <string name="fcl_vnext_profiles_docs_title">📄 Uitleg Profielen en context.</string>
+
+    <string name="fcl_vnext_profiles_docs_summary">Documentatie over dag/nacht-cyclus, resistentie en activiteit en hoe deze het algoritme beïnvloeden.</string>
+
+    <string name="fcl_vnext_profiles_docs_url">https://docs.google.com/document/d/PLACEHOLDER_FCL_VNEXT_PROFILES</string>
+
+    <!-- ===============================
+         Veiligheid & grenzen
+         =============================== -->
+
+    <string name="fcl_vnext_safety_intro">Deze instellingen beschermen tegen overdosering en zorgen dat FCL vNext automatisch afremt bij onzekerheid, hoge IOB of onbetrouwbare data.\nVoor de meeste gebruikers zijn de standaardwaarden veilig en voldoende.</string>
+
+    <string name="fcl_vnext_safety_docs_title">📄 Uitleg Veiligheid en grenzen.</string>
+
+    <string name="fcl_vnext_safety_docs_summary">Toelichting op alle veiligheidsmechanismen, IOB-remming en betrouwbaarheidscontroles.</string>
+
+    <string name="fcl_vnext_safety_docs_url">https://docs.google.com/document/d/PLACEHOLDER_FCL_VNEXT_SAFETY</string>
+
+    <!-- ===============================
+        Analyse & geavanceerd
+        =============================== -->
+
+    <string name="fcl_vnext_advanced_intro">Deze instellingen zijn bedoeld voor analyse, tuning en experimenteel gebruik.\nWijzig deze alleen als je CSV-logs analyseert of weet wat je doet.</string>
+
+    <string name="fcl_vnext_advanced_docs_title">📄 Uitleg Analyse en geavanceerd</string>
+    <string name="fcl_vnext_advanced_docs_summary">Achtergrondinformatie over filtering, absorptie/nasleep en expertinstellingen.</string>
+
+    <string name="fcl_vnext_advanced_docs_url">https://docs.google.com/document/d/PLACEHOLDER_FCL_VNEXT_ADVANCED</string>
+
+
+    <string name="fcl_vnext_toc_hint">Kies hieronder een hoofdstuk. Bovenaan elk hoofdstuk staat uitleg en een document-link, daaronder de instellingen.</string>
+
+    <!-- NEW param: commit IOB power -->
+    <string name="fcl_vnext_commit_iob_power_title">Commit IOB-kromming</string>
+    <string name="fcl_vnext_commit_iob_power_summary">Hoe agressief IOB de commit-dose (maaltijd/commit) afremt. Lager = milder (eerder meer insulin), hoger = strenger (meer remming).</string>
+
+
+</resources>

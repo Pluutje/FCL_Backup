@@ -271,7 +271,7 @@
     <string name="absolute">Absolute</string>
     <string name="waitingforpumpresult">Waiting for result</string>
     <string name="smb_shortname">SMB</string>
-    <string name="fcl_shortname">FCL</string>
+    <string name="fcl_shortname">FCL V2</string>
 
     <!--    CarbsReq-->
     <string name="carbsreq">%1$d g additional carbs required within %2$d minutes</string>

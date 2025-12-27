@@ -50,49 +50,37 @@ enum class DoubleKey(
 
     //  Eigen
 
-    persistent_Dagdrempel("persistent_Dagdrempel", 8.5,7.0,12.0),
-    persistent_Nachtdrempel("persistent_Nachtdrempel",7.0,6.0,10.0),
-    persistent_Dag_MaxBolus("persistent_Dag_MaxBolus", 0.5,0.1,1.0),
-    persistent_Nacht_MaxBolus("persistent_Nacht_MaxBolus",0.3,0.1,1.0),
 
 
-    stap_TT("stap_TT", 2.0,0.5,4.0),
-    max_bolus_day("max_bolus_day", 1.25,0.1,8.0),
-    max_bolus_night("max_bolus_night", 0.5,0.1,8.0),
-    meal_detection_sensitivity("meal_detection_sensitivity", 0.35,0.1,0.5),
-    CarbISF_min_Factor("CarbISF_min_Factor", 0.9,0.5,1.0),
-    CarbISF_max_Factor("CarbISF_max_Factor", 1.1,1.0,2.5),
-
-
+    // FCL vNext
     Dag_resistentie_target("Dag_resistentie_target", 5.2,4.0,8.0),
     Nacht_resistentie_target("Dacht_resistentie_target", 5.2,4.0,8.0),
     Uren_resistentie("Uren_resistentie", 2.5,1.0,5.0),
+    stap_TT("stap_TT", 2.0,0.5,4.0),
+    max_bolus_day("max_bolus_day", 1.25,0.1,8.0),
+    max_bolus_night("max_bolus_night", 0.5,0.1,8.0),
 
-    phase_rising_slope("phase_rising_slope", 0.8,0.2,3.0),
-    phase_plateau_slope("phase_plateau_slope", 0.2,0.05,1.0),
-
-
-    phase_peak_slope("phase_peak_slope", 0.1,-0.5,0.8),
-    phase_early_rise_accel("phase_early_rise_accel", 0.2,0.05,0.5),
-    phase_min_consistency("phase_min_consistency", 0.6,0.3,0.9),
-
-    data_smoothing_alpha("data_smoothing_alpha", 0.4,0.1,0.8),
-    direction_consistency_threshold("direction_consistency_threshold", 0.7,0.3,0.9),
-
-    // FCL vNext
     fcl_vnext_k_delta("fcl_vnext_k_delta", 1.0,0.3,1.5),
-    fcl_vnext_k_slope("fcl_vnext_k_slope", 0.6,0.0,1.5),
-    fcl_vnext_k_accel("fcl_vnext_k_accel", 0.3,0.0,1.0),
-    fcl_vnext_min_consistency("fcl_vnext_min_consistency", 0.25,0.0,0.6),
+    fcl_vnext_k_slope("fcl_vnext_k_slope", 0.45,0.0,1.5),
+    fcl_vnext_k_accel("fcl_vnext_k_accel", 0.55,0.0,1.0),
+    fcl_vnext_min_consistency("fcl_vnext_min_consistency", 0.18,0.0,0.6),
     fcl_vnext_consistency_exp("fcl_vnext_consistency_exp", 1.0,0.5,2.0),
     fcl_vnext_iob_start("fcl_vnext_iob_start", 0.4,0.2,0.7),
-    fcl_vnext_iob_max("fcl_vnext_iob_max", 0.9,0.7,1.2),
-    fcl_vnext_iob_min_factor("fcl_vnext_iob_min_factor", 0.15,0.05,0.4),
+    fcl_vnext_iob_max("fcl_vnext_iob_max", 0.75,0.5,1.2),
+    fcl_vnext_iob_min_factor("fcl_vnext_iob_min_factor", 0.1,0.02,0.4),
     fcl_vnext_gain_day("fcl_vnext_gain_day", 1.0,0.3,2.0),
     fcl_vnext_gain_night("fcl_vnext_gain_night", 0.7,0.2,1.5),
 
-    fcl_vnext_persistent_delta_target("fcl_vnext_persistent_delta_target", 1.5,1.0,3.0),
-    fcl_vnext_persistent_fraction("fcl_vnext_persistent_fraction", 0.1,0.05,0.25),
-    fcl_vnext_persistent_max_slope("fcl_vnext_persistent_max_slope", 0.4,0.2,0.8),
-    fcl_vnext_persistent_iob_limit("fcl_vnext_persistent_iob_limit", 0.6,0.4,0.8),
+    fcl_vnext_stagnation_delta_min("fcl_vnext_stagnation_delta_min", 0.8,0.4,3.0),
+    fcl_vnext_stagnation_slope_max_neg("fcl_vnext_stagnation_slope_max_neg", -0.25,-1.0,0.0),
+    fcl_vnext_stagnation_slope_max_pos("fcl_vnext_stagnation_slope_max_pos", 0.25,0.0,1.0),
+    fcl_vnext_stagnation_energy_boost("fcl_vnext_stagnation_energy_boost", 0.12,0.0,0.5),
+    fcl_vnext_stagnation_accel_max_abs("fcl_vnext_stagnation_accel_max_abs", 0.06,0.01,0.3),
+
+    fcl_vnext_absorption_dose_factor("fcl_vnext_absorption_dose_factor", 0.0,0.0,0.5),
+    fcl_vnext_bg_smoothing_alpha("fcl_vnext_bg_smoothing_alpha", 0.4,0.1,0.8),
+
+    fcl_vnext_commit_iob_power("fcl_vnext_commit_iob_power", 1.0,0.5,2.0),
+
+
 }

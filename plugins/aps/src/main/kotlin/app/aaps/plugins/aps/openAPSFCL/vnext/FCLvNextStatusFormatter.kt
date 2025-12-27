@@ -4,6 +4,18 @@ import org.joda.time.DateTime
 
 class FCLvNextStatusFormatter {
 
+    private fun formatDeliveryHistory(
+        history: List<Pair<DateTime, Double>>?
+    ): String {
+        if (history.isNullOrEmpty()) return "Geen recente afleveringen"
+
+        return history.joinToString("\n") { (ts, dose) ->
+            "${ts.toString("HH:mm")} ${"%.2f".format(dose)}U"
+        }
+    }
+
+
+
     fun buildStatus(
         isNight: Boolean,
         advice: FCLvNextAdvice?,
@@ -22,7 +34,12 @@ STATUS: (${if (isNight) "'S NACHTS" else "OVERDAG"})
 • Advies actief: ${if (shouldDeliver) "JA" else "NEE"}
 • Bolus: ${"%.2f".format(bolusAmount)} U
 • Basaal: ${"%.2f".format(basalRate)} U/h
+
+🧪 LAATSTE DOSISSEN
+─────────────────────
+${formatDeliveryHistory(advice?.let { deliveryHistory.toList() })}
 """.trimIndent()
+
 
         val activityStatus = """
 🏃 ACTIVITEIT
@@ -50,7 +67,7 @@ Nog geen data
 
         return """
 ════════════════════════
-🧠 FCL vNext v15.7.0
+ 🧠 FCL vNext v17.4.0
 ════════════════════════
 
 $coreStatus
